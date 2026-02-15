@@ -8,7 +8,7 @@ https://ieeexplore.ieee.org/abstract/document/10933063 // * Šitas panašu labai
 
 https://www.mdpi.com/2313-433X/9/10/224 // * Naudingas bendram paaiškinimui, kodėl ir kokius paveiksliukus laikome panašiais.
 
-https://ieeexplore.ieee.org/abstract/document/8765608 // * Labai geras, kalba apie infrared matching normal vision, taip pat pamini tiesiog bandymą pritaikyt Gray-scaling paveiksliukam 2019.
+https://ieeexplore.ieee.org/abstract/document/8765608 // ** Labai geras, kalba apie infrared matching normal vision, taip pat pamini tiesiog bandymą pritaikyt Gray-scaling paveiksliukam 2019.
 
 https://dl.acm.org/doi/10.1145/3418215 // Kalba apie paveiksliukų preprocesing, bet ne main focus, naudoja Gabor/Log-Gabor filter ir resizina i 224x224.
 
