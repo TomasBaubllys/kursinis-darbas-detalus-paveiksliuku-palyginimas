@@ -1,0 +1,19 @@
+https://ieeexplore.ieee.org/document/10018260 // Šitas panašu labai į temą, kalba apie background suppresion.
+
+https://dl.acm.org/doi/10.1145/3418215 // Kalba apie paveiksliukų preprocesing, bet ne main focus, naudoja Gabor/Log-Gabor filter ir resizina i 224x224.
+
+https://arxiv.org/pdf/2111.07783 // panašu, kad į temą, tik senesnis (2021m.)
+
+https://ieeexplore.ieee.org/document/10147290 // Labiau bendrai ir mokamas.
+
+https://www.mdpi.com/2227-7390/13/7/1098 // Labiau kalba apie pačių modeliu keitimą, negu paveiksliukų modifikavimą, bet panašu, kad turi daug naudingos informacijos
+
+https://ieeexplore.ieee.org/abstract/document/10933063 // Šitas panašu labai naudingas, kalbama apie paveiksliuku reklasifikavimą, kalbama apie Siamese networks.
+
+https://www.sciencedirect.com/science/article/pii/S0168169925003291 // Nors nekalba tiesiogiai, kaip galime modifikuoti (preprocesint) paveiksliukus, tačiau panašu yra daug naudingos info apie YOLO ir triplet-loss
+
+https://link.springer.com/content/pdf/10.1007/s11432-022-3586-y.pdf?getft_integrator=clarivate // Siulo speficini Siamese transformeri, tačiau labiau kalbama apie kaip skaidyt paveikslėlį, negi kaip kitaip preprocesint
+
+https://www.mdpi.com/2313-433X/9/10/224 // Naudingas bendram paaiškinimui, kodėl ir kokius paveiksliukus laikome panašiais.
+
+https://ieeexplore.ieee.org/abstract/document/9861685 // Nekalbama apie paveiksliuku procesinimą, bet bendrai panašu naudinga dėl Siamese tinklų, bet kogero galima pagal jų rezultatus vėl gi kažkaip ištraukt iš naktinių paveiksliukų geriau features, nes panašu, kad jie gavo, jog praščiausiai yra lyginama dėl tamsumos.
