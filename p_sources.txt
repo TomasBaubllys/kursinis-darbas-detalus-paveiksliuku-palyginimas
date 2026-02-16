@@ -1,4 +1,4 @@
-https://ieeexplore.ieee.org/document/10018260 // * Šitas panašu labai į temą, kalba apie background suppresion.
+https://ieeexplore.ieee.org/document/10018260 // * Šitas panašu labai į temą, kalba apie background suppresion KODAS: https://github.com/CSer-Tang-hao/BSFA-FSFG.
 
 https://arxiv.org/abs/2003.10822 // * irgi labai geras, lygina skirtingus image preprocesing būdus kaip CLAHE ir Retinex 2020 metų.https://arxiv.org/abs/2003.10822
 
