@@ -1,5 +1,7 @@
-https://ieeexplore.ieee.org/document/10018260 // * Šitas panašu labai į temą, kalba apie background suppresion KODAS: https://github.com/CSer-Tang-hao/BSFA-FSFG.
+https://www.sciencepubco.com/index.php/IJET/article/view/22889 // https://github.com/harveyslash/Facial-Similarity-with-Siamese-Networks-in-Pytorch?tab=readme-ov-file
 
+https://ieeexplore.ieee.org/document/10018260 // * Šitas panašu labai į temą, kalba apie background suppresion KODAS: https://github.com/CSer-Tang-hao/BSFA-FSFG.
+s
 https://arxiv.org/abs/2003.10822 // * irgi labai geras, lygina skirtingus image preprocesing būdus kaip CLAHE ir Retinex 2020 metų.https://arxiv.org/abs/2003.10822
 
 https://arxiv.org/pdf/2111.07783 // * panašu, kad į temą, tik senesnis (2021m.)
