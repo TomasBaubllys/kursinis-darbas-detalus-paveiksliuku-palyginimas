@@ -1,0 +1,3 @@
+https://www.kaggle.com/datasets/jutrera/stanford-car-dataset-by-classes-folder?resource=download // didelis masinu dataset visai idomu...
+
+https://www.vision.caltech.edu/datasets/cub_200_2011/ // klasika, daug kas naudoja sita daikta pauksciai
