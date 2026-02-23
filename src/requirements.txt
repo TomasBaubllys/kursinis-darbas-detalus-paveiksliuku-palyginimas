@@ -1,0 +1,5 @@
+gdown==5.2.1
+matplotlib==3.10.8
+Pillow==12.1.1
+torch==2.10.0
+torchvision==0.25.0

@@ -22,8 +22,8 @@ def get_features(img_path):
 
 
 try:
-    feat1 = get_features("auto1.jpg")
-    feat2 = get_features("auto2.jpg")
+    feat1 = get_features("auto2.jpg")
+    feat2 = get_features("auto1.jpg")
 
     similarity = cosine_similarity([feat1], [feat2])[0][0]
 
