@@ -21,8 +21,10 @@ def setup_market1501():
     if not os.path.exists(zip_file_full_path):
         print(f"Downloading the dataset {output_zip} file")
         gdown.download(url, zip_file_full_path, quiet=False)
-    
+    print("Extracting the zip file")
+    with zipfile.ZipFile(zip_file_full_path, 'r') as zip_ref:
+        zip_ref.extractall(data_dir)
 
-setup_market1501()
-# gdown.download(url, output, quiet=False)
+if __name__ == "__main__":
+    setup_market1501()
 
