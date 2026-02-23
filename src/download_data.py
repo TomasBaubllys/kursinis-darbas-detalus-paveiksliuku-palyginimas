@@ -18,9 +18,8 @@ def setup_market1501():
     try:
         data_dir = os.path.join(os.getcwd(), relative_dir)
         zip_file_full_path = os.path.join(data_dir, output_zip)
-        if not os.path.exists(data_dir):
-            print(f"Creating a new directory: {data_dir}")
-            os.mkdir(data_dir)
+        print(f"Creating directory {data_dir}")
+        os.makedirs(data_dir, exist_ok=True)
         if not os.path.exists(zip_file_full_path):
             print(f"Downloading the dataset {output_zip} file")
             gdown.download(url, zip_file_full_path, quiet=False)
