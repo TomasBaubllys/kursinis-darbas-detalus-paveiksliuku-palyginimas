@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Contrastive_Loss(nn.Module):
     def __init__(self, margin=2.0):
@@ -7,7 +8,7 @@ class Contrastive_Loss(nn.Module):
 		self.margin = margin
 
 	def forward(self, output1, output2, label):
-		euclidean_dist = nn.functional.pairwise_distance(output1, output2)
+		euclidean_dist = F.pairwise_distance(output1, output2)
 		
 		# minimize dist if the same person label = 1
 		pos = label * torch.pow(euclidean_dist, 2)
