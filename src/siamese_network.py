@@ -18,7 +18,10 @@ class Siamese_Network(nn.Module):
 
         # overwrite the top layer
         self.backbone.fc = nn.Sequential(
-            nn.Linear(num_ftrs, 256), nn.ReLU(), nn.Linear(256, 128)
+            nn.Linear(num_ftrs, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
         )
 
     def forward_once(self, x):

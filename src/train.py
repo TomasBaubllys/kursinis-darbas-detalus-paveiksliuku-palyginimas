@@ -1,3 +1,4 @@
+import os
 import sys
 
 import torch
@@ -12,6 +13,8 @@ from pksampler import PKSampler
 from siamese_network import Siamese_Network
 from triplet_loss import Batch_Hard_Triplet_Loss
 
+CHECKPOINT_PATH = "../checkpoint"
+
 
 def train():
     # check if user wanted to redownload data (re unzip)
@@ -20,6 +23,10 @@ def train():
         for arg in args:
             if arg in ("-red", "--refresh_data"):
                 download_data.setup_market1501()
+
+    # make a checkpoint dir
+    if not os.path.exists(CHECKPOINT_PATH):
+        os.makedirs(CHECKPOINT_PATH)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -80,6 +87,19 @@ def train():
             f"Epoch {epoch + 1} done. Current Learning Rate: {current_lr}, Average Loss: {running_loss / len(dataloader):.4f}"
         )
 
+        # save everything
+        checkpoint = {
+            "epoch": epoch,
+            "model_state_dict": siamese_net.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+        }
+
+        torch.save(
+            checkpoint,
+            os.path.join(os.getcwd(), CHECKPOINT_PATH, f"checkpoint_{epoch=}.pth"),
+        )
+
+    # save the final state
     torch.save(siamese_net.state_dict(), "siamese_resnet18_batchhard.pth")
     print("Training Finished")
 
