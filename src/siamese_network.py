@@ -26,4 +26,4 @@ class Siamese_Network(nn.Module):
 
     def forward(self, x):
         output = self.forward_once(x)
-        return x
+        return output

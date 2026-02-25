@@ -9,10 +9,12 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/bounding_box_train"
+
 
 class MarketSiameseDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
-        dataset_dir_train = "../data/Market-1501-v15.09.15/bounding_box_train"
+    def __init__(self, root_dir=DEFAULT_DATA_PATH, transform=None):
+        dataset_dir_train = root_dir
         full_dataset_dir_train = os.path.join(os.getcwd(), dataset_dir_train)
 
         all_files = os.listdir(full_dataset_dir_train)
@@ -66,4 +68,8 @@ class MarketSiameseDataset(Dataset):
         target_id = self.person_ids[idx]
         img_path = random.choice(self.id_to_images[target_id])
         img = Image.open(img_path).convert("RGB")
+
+        if self.transform:
+            img = self.transform(img)
+
         return img, int(target_id)
