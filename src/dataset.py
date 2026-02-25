@@ -1,15 +1,16 @@
 import os
+import random
 from collections import defaultdict
+
+import matplotlib.pyplot as plt
 from PIL import Image
 from torch.utils.data import Dataset
-import random
-import matplotlib.pyplot as plt
 from torchvision import transforms
 
 
 class MarketSiameseDataset(Dataset):
     def __init__(self, root_dir, transform=None):
-        dataset_dir_train = '../data/Market-1501-v15.09.15/bounding_box_train'
+        dataset_dir_train = "../data/Market-1501-v15.09.15/bounding_box_train"
         full_dataset_dir_train = os.path.join(os.getcwd(), dataset_dir_train)
 
         all_files = os.listdir(full_dataset_dir_train)
@@ -17,17 +18,20 @@ class MarketSiameseDataset(Dataset):
         self.transform = transform
 
         for f in all_files:
-            if f.endswith('.jpg'):
-                person_id = f.split('_')[0]
-                if person_id not in ['-1', '0000']:
-                    self.id_to_images[person_id].append(os.path.join(full_dataset_dir_train, f))
+            if f.endswith(".jpg"):
+                person_id = f.split("_")[0]
+                if person_id not in ["-1", "0000"]:
+                    self.id_to_images[person_id].append(
+                        os.path.join(full_dataset_dir_train, f)
+                    )
 
         self.person_ids = list(self.id_to_images.keys())
 
     def __len__(self):
         return len(self.person_ids)
 
-    def __getitem__(self, idx):
+    # not used in the actual training, since we switched to triplet loss
+    def __getitem__contrastive_loss(self, idx):
         target_id = self.person_ids[idx]
 
         # decide if we want the same person or not
@@ -47,8 +51,8 @@ class MarketSiameseDataset(Dataset):
             # 0.0 means its a different image
             label = 0.0
 
-        img1 = Image.open(img_path1).convert('RGB')
-        img2 = Image.open(img_path2).convert('RGB')
+        img1 = Image.open(img_path1).convert("RGB")
+        img2 = Image.open(img_path2).convert("RGB")
 
         if self.transform:
             img1 = self.transform(img1)
@@ -56,13 +60,19 @@ class MarketSiameseDataset(Dataset):
 
         return img1, img2, label
 
+    def __getitem__(self, idx):
+        target_id = self.person_ids[idx]
+        img_path = random.choice(self.id_to_images[target_id])
+        img = Image.open(img_path).convert("RGB")
+        return img, int(target_id)
+
+
 # AI GENERATED CODE BELOW
 def test_siamese_dataset(data_path):
     # 1. Define a basic transform (No normalization yet so the colors look normal in the plot)
-    test_transform = transforms.Compose([
-        transforms.Resize((256, 128)),
-        transforms.ToTensor()
-    ])
+    test_transform = transforms.Compose(
+        [transforms.Resize((256, 128)), transforms.ToTensor()]
+    )
 
     # 2. Initialize your class
     dataset = MarketSiameseDataset(root_dir=data_path, transform=test_transform)
@@ -80,18 +90,21 @@ def test_siamese_dataset(data_path):
 
         # Plotting
         axes[i, 0].imshow(img1_np)
-        axes[i, 0].set_title(f"Pair {i+1}: Image A")
+        axes[i, 0].set_title(f"Pair {i + 1}: Image A")
         axes[i, 1].imshow(img2_np)
-        axes[i, 1].set_title(f"Pair {i+1}: Image B (Label: {label})")
+        axes[i, 1].set_title(f"Pair {i + 1}: Image B (Label: {label})")
 
-        print(f"Sample {i+1}: Label {label} ({'Same' if label == 1.0 else 'Different'} Person)")
+        print(
+            f"Sample {i + 1}: Label {label} ({'Same' if label == 1.0 else 'Different'} Person)"
+        )
 
     plt.tight_layout()
     plt.savefig("lol.jpg")
 
+
 if __name__ == "__main__":
     # Update this path to your actual folder
-    train_path = '../data/Market-1501-v15.09.15/bounding_box_train'
+    train_path = "../data/Market-1501-v15.09.15/bounding_box_train"
 
     # Run your index check
     # (Assuming your index_training_data() logic is now inside the class or available)
