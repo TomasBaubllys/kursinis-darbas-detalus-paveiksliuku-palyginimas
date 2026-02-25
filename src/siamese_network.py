@@ -1,3 +1,5 @@
+# Author: Tomas Baublys
+
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -22,8 +24,9 @@ class Siamese_Network(nn.Module):
     def forward_once(self, x):
         return self.backbone(x)
 
-    def forward(self, input1, input2):
+    def forward(self, input1, input2, input3):
         output1 = self.forward_once(input1)
         output2 = self.forward_once(input2)
+        output3 = self.forward_once(input3)
 
-        return output1, output2
+        return output1, output2, output3

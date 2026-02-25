@@ -1,3 +1,5 @@
+# Author: Tomas Baublys
+
 import os
 import random
 from collections import defaultdict
