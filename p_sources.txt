@@ -25,3 +25,5 @@ https://link.springer.com/content/pdf/10.1007/s11432-022-3586-y.pdf?getft_integr
 https://ieeexplore.ieee.org/abstract/document/9861685 // Nekalbama apie paveiksliuku procesinimą, bet bendrai panašu naudinga dėl Siamese tinklų, bet kogero galima pagal jų rezultatus vėl gi kažkaip ištraukt iš naktinių paveiksliukų geriau features, nes panašu, kad jie gavo, jog praščiausiai yra lyginama dėl tamsumos. Nera kodo
 
 https://www.mdpi.com/2072-4292/15/24/5631 // kalba apie SIFT ir SIFT+ Nera kodo.
+
+https://ieeexplore.ieee.org/document/11186641
