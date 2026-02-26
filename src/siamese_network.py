@@ -3,47 +3,15 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-"""
-class Siamese_Network(nn.Module):
-    def __init__(self, num_classes=751):  # Market-1501 train set has 751 IDs
-        super().__init__()
-        self.backbone = models.resnet18(weights="DEFAULT")
-
-        # Remove the original FC layer to access the 512-d features
-        num_ftrs = self.backbone.fc.in_features
-        self.backbone.fc = nn.Identity()
-
-        # Embedding Head (for Triplet Loss)
-        self.embedding_head = nn.Sequential(
-            nn.Linear(num_ftrs, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 128),
-            nn.BatchNorm1d(128),  # Features for Triplet Loss
-        )
-
-        # Classification Head (for Cross-Entropy Loss)
-        # Note: Standard Re-ID practice uses the output of the first BatchNorm
-        # or a separate linear layer for classification.
-        self.classifier = nn.Linear(128, num_classes)
-
-    def forward(self, x):
-        features = self.backbone(x)
-        embeddings = self.embedding_head(features)
-
-        if self.training:
-            cls_score = self.classifier(embeddings)
-            return embeddings, cls_score
-
-        return embeddings
-"""
-
 
 class Siamese_Network(nn.Module):
-    def __init__(self):
+    def __init__(self, backbone="resnet18"):
         super().__init__()
-        self.backbone = models.resnet18(weights="DEFAULT")
+
+        if backbone == "resnet18":
+            self.backbone = models.resnet18(weights="DEFAULT")
+        elif backbone == "resnet50":
+            self.backbone = models.resnet50(weights="DEFAULT")
 
         # Freeze all backbone parameters
         # for param in self.backbone.parameters():
@@ -56,13 +24,14 @@ class Siamese_Network(nn.Module):
             nn.Linear(num_ftrs, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(0.5),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
         )
 
     def forward_once(self, x):
-        return self.backbone(x)
+        self.backbone(x)
+        x = nn.functional.normalize(x, p=2, dim=1)
+        return
 
     def forward(self, x):
         output = self.forward_once(x)
