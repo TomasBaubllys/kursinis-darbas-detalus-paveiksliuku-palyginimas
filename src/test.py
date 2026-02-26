@@ -1,11 +1,11 @@
-"""
 import os
 
 import numpy as np
 import torch
 import torch.nn as nn
+from PIL import Image
 from scipy.spatial.distance import cdist
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 from dataset import MarketSiameseDataset
@@ -14,180 +14,103 @@ from siamese_network import Siamese_Network
 DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/"
 
 
-def extract_features(model, dataloader, device):
-    model.eval()
-    features = []
-    labels = []
-    cam_ids = []  # Market-1501 requires camera IDs for mAP
+class MarketEvalDataset(Dataset):
+    def __init__(self, root_dir, transform=None):
+        self.transform = transform
+        self.samples = []  # list of (img_path, pid, camid)
 
-    with torch.no_grad():
-        for imgs, pids in dataloader:
-            imgs = imgs.to(device)
-            # 1. Forward pass
-            emb = model(imgs)
-            # 2. IMPORTANT: Normalize just like you did in training
-            emb = nn.functional.normalize(emb, p=2, dim=1)
+        full_dir = os.path.join(os.getcwd(), root_dir)
+        for f in sorted(os.listdir(full_dir)):
+            if not f.endswith(".jpg"):
+                continue
+            parts = f.split("_")
+            pid = parts[0]
+            camid = parts[1]  # e.g. "c1"
+            if pid in ["-1", "0000"]:
+                continue
+            self.samples.append((os.path.join(full_dir, f), pid, camid))
 
-            features.append(emb.cpu().numpy())
-            labels.append(pids.numpy())
+    def __len__(self):
+        return len(self.samples)
 
-    return np.vstack(features), np.concatenate(labels)
-
-
-def evaluate():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Use the same transforms as training
-    transform = transforms.Compose(
-        [
-            transforms.Resize(
-                (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
-            ),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-
-    # Load Model
-    model = Siamese_Network().to(device)
-    model.load_state_dict(torch.load("siamese_resnet18_batchhard.pth"))
-    model.eval()
-
-    # Setup Gallery and Query DataLoaders
-    # Note: Use your custom Dataset class but point to test folders
-    gallery_path = os.path.join(DEFAULT_DATA_PATH, "bounding_box_test")
-    query_path = os.path.join(DEFAULT_DATA_PATH, "query")
-
-    gallery_loader = DataLoader(
-        MarketSiameseDataset(gallery_path, transform=transform), batch_size=64
-    )
-    query_loader = DataLoader(
-        MarketSiameseDataset(query_path, transform=transform), batch_size=64
-    )
-
-    print("Extracting features...")
-    q_feat, q_pids = extract_features(model, query_loader, device)
-    g_feat, g_pids = extract_features(model, gallery_loader, device)
-
-    # Calculate Euclidean Distance between all Query and Gallery images
-    # Shape will be (num_queries, num_gallery)
-    dist_matrix = cdist(q_feat, g_feat, metric="euclidean")
-
-    # Rank-1 Accuracy Calculation
-    r1 = 0
-    for i in range(len(q_pids)):
-        # Sort indices of gallery by distance to this query
-        rank_indices = np.argsort(dist_matrix[i])
-
-        # Get the PID of the closest gallery match
-        closest_match_pid = g_pids[rank_indices[0]]
-
-        if closest_match_pid == q_pids[i]:
-            r1 += 1
-
-    print(f"Rank-1 Accuracy: {r1 / len(q_pids) * 100:.2f}%")
-
-
-if __name__ == "__main__":
-    evaluate()
-"""
-
-import os
-
-import numpy as np
-import torch
-import torch.nn as nn
-from scipy.spatial.distance import cdist
-from torch.utils.data import DataLoader
-from torchvision import transforms
-
-from dataset import MarketSiameseDataset
-from siamese_network import Siamese_Network
-
-DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/"
+    def __getitem__(self, idx):
+        img_path, pid, camid = self.samples[idx]
+        img = Image.open(img_path).convert("RGB")
+        if self.transform:
+            img = self.transform(img)
+        return img, pid, camid
 
 
 def extract_features(model, dataloader, device):
     model.eval()
-    features = []
-    labels = []
+    all_features = []
+    all_pids = []
+    all_camids = []
+
     with torch.no_grad():
-        for imgs, pids in dataloader:
+        for imgs, pids, camids in dataloader:
             imgs = imgs.to(device)
-            # Forward pass
             emb = model(imgs)
-            # IMPORTANT: Normalize just like you did in training
             emb = nn.functional.normalize(emb, p=2, dim=1)
-            features.append(emb.cpu().numpy())
-            labels.append(pids.numpy())
-    return np.vstack(features), np.concatenate(labels)
+            all_features.append(emb.cpu().numpy())
+            all_pids.extend(pids)
+            all_camids.extend(camids)
+
+    return np.vstack(all_features), np.array(all_pids), np.array(all_camids)
 
 
-def compute_metrics(dist_matrix, q_pids, g_pids):
+def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
     """
-    Compute Rank-1, Rank-5, Rank-10, and mAP.
-
-    Args:
-        dist_matrix: (num_queries, num_gallery) distance matrix
-        q_pids: query person IDs
-        g_pids: gallery person IDs
-
-    Returns:
-        rank1, rank5, rank10, mAP: evaluation metrics as percentages
+    Proper Market-1501 evaluation:
+    For each query, remove gallery images with same pid AND same camera
+    (junk images) before ranking.
     """
     num_queries = len(q_pids)
-
     rank1_correct = 0
     rank5_correct = 0
-    rank10_correct = 0
     all_ap = []
 
     for i in range(num_queries):
-        # Sort gallery images by distance to this query
-        rank_indices = np.argsort(dist_matrix[i])
+        q_pid = q_pids[i]
+        q_camid = q_camids[i]
 
-        # Get person IDs in ranked order
-        ranked_pids = g_pids[rank_indices]
+        # Find valid gallery indices: exclude same pid + same camera
+        valid_mask = ~((g_pids == q_pid) & (g_camids == q_camid))
 
-        # Check if closest match is correct (Rank-1)
-        if ranked_pids[0] == q_pids[i]:
+        valid_dist = dist_matrix[i][valid_mask]
+        valid_pids = g_pids[valid_mask]
+
+        rank_indices = np.argsort(valid_dist)
+        ranked_pids = valid_pids[rank_indices]
+
+        matches = (ranked_pids == q_pid).astype(int)
+
+        if matches.sum() == 0:
+            continue
+
+        # Rank-1
+        if ranked_pids[0] == q_pid:
             rank1_correct += 1
 
-        # Check if any of top-5 are correct (Rank-5)
-        if np.any(ranked_pids[:5] == q_pids[i]):
+        # Rank-5
+        if np.any(ranked_pids[:5] == q_pid):
             rank5_correct += 1
 
-        # Check if any of top-10 are correct (Rank-10)
-        if np.any(ranked_pids[:10] == q_pids[i]):
-            rank10_correct += 1
+        # Average Precision
+        precision_at_k = np.cumsum(matches) / (np.arange(len(matches)) + 1)
+        ap = np.sum(precision_at_k * matches) / matches.sum()
+        all_ap.append(ap)
 
-        # Compute Average Precision (AP)
-        # Mark which gallery images match the query
-        matches = (ranked_pids == q_pids[i]).astype(int)
-
-        if np.sum(matches) > 0:
-            # Precision at each position
-            precision_at_k = np.cumsum(matches) / (np.arange(len(matches)) + 1)
-            # Average Precision = sum of (precision * match) / num_matches
-            ap = np.sum(precision_at_k * matches) / np.sum(matches)
-            all_ap.append(ap)
-        else:
-            # No positive matches for this query
-            all_ap.append(0.0)
-
-    rank1 = rank1_correct / num_queries * 100
-    rank5 = rank5_correct / num_queries * 100
-    rank10 = rank10_correct / num_queries * 100
-    mAP = np.mean(all_ap) * 100
-
-    return rank1, rank5, rank10, mAP
+    return (
+        rank1_correct / num_queries * 100,
+        rank5_correct / num_queries * 100,
+        np.mean(all_ap) * 100,
+    )
 
 
 def evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
 
-    # Use the same transforms as training (no augmentation for testing)
     transform = transforms.Compose(
         [
             transforms.Resize(
@@ -198,53 +121,52 @@ def evaluate():
         ]
     )
 
-    # Load Model
-    print("Loading model...")
-    model = Siamese_Network().to(device)
-    model.load_state_dict(
-        torch.load("siamese_resnet18_batchhard.pth", map_location=device)
-    )
+    train_path = os.path.join(DEFAULT_DATA_PATH, "bounding_box_train")
+    train_ds = MarketSiameseDataset(train_path)
+    num_classes = train_ds.num_ids
+
+    print(f"Initializing model with {num_classes} classes...")
+    model = Siamese_Network(num_classes=num_classes).to(device)
+
+    checkpoint_name = "siamese_resnet18_bot.pth"
+    if os.path.exists(checkpoint_name):
+        model.load_state_dict(torch.load(checkpoint_name, map_location=device))
+        print(f"Loaded {checkpoint_name}")
+    else:
+        print("Warning: Checkpoint not found, using random weights.")
+
     model.eval()
-    print("Model loaded successfully")
 
-    # Setup Gallery and Query DataLoaders
-    gallery_path = os.path.join(DEFAULT_DATA_PATH, "bounding_box_test")
-    query_path = os.path.join(DEFAULT_DATA_PATH, "query")
-
-    print(f"Loading gallery from: {gallery_path}")
-    print(f"Loading query from: {query_path}")
-
-    gallery_loader = DataLoader(
-        MarketSiameseDataset(gallery_path, transform=transform), batch_size=64
+    gallery_ds = MarketEvalDataset(
+        os.path.join(DEFAULT_DATA_PATH, "bounding_box_test"), transform=transform
     )
-    query_loader = DataLoader(
-        MarketSiameseDataset(query_path, transform=transform), batch_size=64
+    query_ds = MarketEvalDataset(
+        os.path.join(DEFAULT_DATA_PATH, "query"), transform=transform
     )
 
+    gallery_loader = DataLoader(gallery_ds, batch_size=64, shuffle=False, num_workers=4)
+    query_loader = DataLoader(query_ds, batch_size=64, shuffle=False, num_workers=4)
+
+    print(f"Query images: {len(query_ds)}, Gallery images: {len(gallery_ds)}")
     print("Extracting features...")
-    q_feat, q_pids = extract_features(model, query_loader, device)
-    g_feat, g_pids = extract_features(model, gallery_loader, device)
 
-    print(f"Query set: {len(q_feat)} samples")
-    print(f"Gallery set: {len(g_feat)} samples")
+    q_feat, q_pids, q_camids = extract_features(model, query_loader, device)
+    g_feat, g_pids, g_camids = extract_features(model, gallery_loader, device)
 
-    # Calculate Euclidean Distance between all Query and Gallery images
-    print("Computing distance matrix...")
-    dist_matrix = cdist(q_feat, g_feat, metric="euclidean")
+    print("Computing distance matrix (Cosine) and metrics...")
+    dist_matrix = cdist(q_feat, g_feat, metric="cosine")
 
-    # Compute metrics
-    print("Computing metrics...")
-    rank1, rank5, rank10, mAP = compute_metrics(dist_matrix, q_pids, g_pids)
+    r1, r5, mAP = compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids)
 
-    # Print results
-    print("\n" + "=" * 50)
-    print("EVALUATION RESULTS")
-    print("=" * 50)
-    print(f"Rank-1 Accuracy:  {rank1:.2f}%")
-    print(f"Rank-5 Accuracy:  {rank5:.2f}%")
-    print(f"Rank-10 Accuracy: {rank10:.2f}%")
-    print(f"Mean Average Precision (mAP): {mAP:.2f}%")
-    print("=" * 50)
+    print("\n" + "=" * 30)
+    print("EVALUATION (COSINE DISTANCE)")
+    print("=" * 30)
+    print(f"Query:   {len(q_pids)} images")
+    print(f"Gallery: {len(g_pids)} images")
+    print(f"Rank-1:  {r1:.2f}%")
+    print(f"Rank-5:  {r5:.2f}%")
+    print(f"mAP:     {mAP:.2f}%")
+    print("=" * 30)
 
 
 if __name__ == "__main__":
