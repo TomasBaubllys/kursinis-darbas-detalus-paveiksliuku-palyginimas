@@ -9,7 +9,6 @@ class Siamese_Network(nn.Module):
         # Load pre-trained ResNet18
         resnet = models.resnet18(weights="DEFAULT")
 
-        # TRICK 1: Last Stride Trick
         # Increasing the spatial resolution from 8x4 to 16x8 for richer features
         resnet.layer4[0].conv1.stride = (1, 1)
         resnet.layer4[0].downsample[0].stride = (1, 1)
@@ -19,7 +18,6 @@ class Siamese_Network(nn.Module):
 
         in_features = resnet.fc.in_features
 
-        # TRICK 2: BNNeck (Batch Normalization Neck)
         # Separates metric space and classification space
         self.bottleneck = nn.BatchNorm1d(in_features)
         self.bottleneck.bias.requires_grad_(False)  # No bias for BNNeck
