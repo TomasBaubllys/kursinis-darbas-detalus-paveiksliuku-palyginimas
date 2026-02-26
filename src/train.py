@@ -70,7 +70,7 @@ def train():
     )
 
     siamese_net = Siamese_Network().to(device)
-    criterion = Batch_Hard_Triplet_Loss(margin=0.5).to(device)  # margin was 0.3 org
+    criterion = Batch_Hard_Triplet_Loss(margin=1).to(device)  # margin was 0.3 org
 
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, siamese_net.parameters()), lr=3e-4
