@@ -1,4 +1,4 @@
-https://ieeexplore.ieee.org/abstract/document/8930088?casa_token=xuXCbnfCyWUAAAAA%3AfN5L6bSmFnopIdl8-Nm6TabtU4u2dpUqU9oTg5iAckvRjkVsDXl-2fO5Aw7hw6BVe0guEs3yh4M // *** LABAI GERAS
+https://ieeexplore.ieee.org/abstract/document/8930088 // *** LABAI GERAS
 
 https://www.sciencepubco.com/index.php/IJET/article/view/22889 // https://github.com/harveyslash/Facial-Similarity-with-Siamese-Networks-in-Pytorch?tab=readme-ov-file
 
