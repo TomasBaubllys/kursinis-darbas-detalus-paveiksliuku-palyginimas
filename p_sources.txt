@@ -1,4 +1,4 @@
-https://ieeexplore.ieee.org/abstract/document/8930088 // *** LABAI GERAS
+https://ieeexplore.ieee.org/abstract/document/8930088 // *** LABAI GERAS kodas: https://github.com/michuanhaohao/reid-strong-baseline/tree/master
 
 https://www.sciencepubco.com/index.php/IJET/article/view/22889 // https://github.com/harveyslash/Facial-Similarity-with-Siamese-Networks-in-Pytorch?tab=readme-ov-file
 
