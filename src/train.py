@@ -10,7 +10,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import download_data
-from cross_entropy_label_smooth import CrossEntropyLabelSmooth
+from cross_entropy_label_smooth import Cross_Entropy_Label_Smooth
 from dataset import DEFAULT_DATA_PATH, MarketSiameseDataset
 from pksampler import PKSampler
 from resnet18_bot import ResNet18_BoT
@@ -60,7 +60,7 @@ def train():
 
     # Paper uses margin=0.3 for Batch Hard Triplet
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
-    criterion_id = CrossEntropyLabelSmooth(num_classes=num_classes).to(device)
+    criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
 
     # TRICK: Warmup Learning Rate Schedule
     optimizer = optim.Adam(siamese_net.parameters(), lr=3.5e-4, weight_decay=5e-4)
