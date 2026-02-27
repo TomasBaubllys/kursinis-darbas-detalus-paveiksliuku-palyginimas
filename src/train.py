@@ -37,7 +37,9 @@ def train():
 
     transformations = transforms.Compose(
         [
-            transforms.Resize((256, 128)),
+            transforms.Resize(
+                (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+            ),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.Pad(10),
             transforms.RandomCrop((256, 128)),
