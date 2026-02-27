@@ -10,28 +10,13 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import download_data
+from cross_entropy_label_smooth import CrossEntropyLabelSmooth
 from dataset import DEFAULT_DATA_PATH, MarketSiameseDataset
 from pksampler import PKSampler
-from siamese_network import Siamese_Network
+from resnet18_bot import ResNet18_BoT
 from triplet_loss import Batch_Hard_Triplet_Loss
 
 CHECKPOINT_PATH = "../checkpoint"
-
-
-# TRICK: Label Smoothing Cross Entropy
-class CrossEntropyLabelSmooth(nn.Module):
-    def __init__(self, num_classes, epsilon=0.1):
-        super(CrossEntropyLabelSmooth, self).__init__()
-        self.num_classes = num_classes
-        self.epsilon = epsilon
-        self.logsoftmax = nn.LogSoftmax(dim=1)
-
-    def forward(self, inputs, targets):
-        log_probs = self.logsoftmax(inputs)
-        targets = torch.zeros_like(log_probs).scatter_(1, targets.unsqueeze(1), 1)
-        targets = (1 - self.epsilon) * targets + self.epsilon / self.num_classes
-        loss = (-targets * log_probs).mean(0).sum()
-        return loss
 
 
 def train():
@@ -71,7 +56,7 @@ def train():
         market_dataset, sampler=market_sampler, num_workers=4, batch_size=p_val * k_val
     )
 
-    siamese_net = Siamese_Network(num_classes=num_classes).to(device)
+    siamese_net = ResNet18_BoT(num_classes=num_classes).to(device)
 
     # Paper uses margin=0.3 for Batch Hard Triplet
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)

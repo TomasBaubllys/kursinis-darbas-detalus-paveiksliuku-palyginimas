@@ -1,5 +1,6 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -8,6 +9,7 @@ from scipy.spatial.distance import cdist
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
+# Assuming these are in your local directory
 from dataset import MarketSiameseDataset
 from siamese_network import Siamese_Network
 
@@ -20,6 +22,9 @@ class MarketEvalDataset(Dataset):
         self.samples = []  # list of (img_path, pid, camid)
 
         full_dir = os.path.join(os.getcwd(), root_dir)
+        if not os.path.exists(full_dir):
+            raise FileNotFoundError(f"Directory {full_dir} not found.")
+
         for f in sorted(os.listdir(full_dir)):
             if not f.endswith(".jpg"):
                 continue
@@ -51,6 +56,7 @@ def extract_features(model, dataloader, device):
         for imgs, pids, camids in dataloader:
             imgs = imgs.to(device)
             emb = model(imgs)
+            # L2 Normalize for Cosine Similarity
             emb = nn.functional.normalize(emb, p=2, dim=1)
             all_features.append(emb.cpu().numpy())
             all_pids.extend(pids)
@@ -60,11 +66,6 @@ def extract_features(model, dataloader, device):
 
 
 def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
-    """
-    Proper Market-1501 evaluation:
-    For each query, remove gallery images with same pid AND same camera
-    (junk images) before ranking.
-    """
     num_queries = len(q_pids)
     rank1_correct = 0
     rank5_correct = 0
@@ -74,9 +75,8 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
         q_pid = q_pids[i]
         q_camid = q_camids[i]
 
-        # Find valid gallery indices: exclude same pid + same camera
+        # Market-1501 Rule: Exclude gallery images with same PID AND same Camera (Junk)
         valid_mask = ~((g_pids == q_pid) & (g_camids == q_camid))
-
         valid_dist = dist_matrix[i][valid_mask]
         valid_pids = g_pids[valid_mask]
 
@@ -84,15 +84,11 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
         ranked_pids = valid_pids[rank_indices]
 
         matches = (ranked_pids == q_pid).astype(int)
-
         if matches.sum() == 0:
             continue
 
-        # Rank-1
         if ranked_pids[0] == q_pid:
             rank1_correct += 1
-
-        # Rank-5
         if np.any(ranked_pids[:5] == q_pid):
             rank5_correct += 1
 
@@ -108,6 +104,68 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
     )
 
 
+def visualize_results(
+    q_ds, g_ds, dist_matrix, q_pids, g_pids, q_camids, g_camids, num_samples=16
+):
+    """
+    Displays query images and their top-1 gallery match with color-coded borders.
+    """
+    print(f"Generating visualization for {num_samples} random queries...")
+    plt.figure(figsize=(16, 12))
+    indices = np.random.choice(len(q_pids), num_samples, replace=False)
+
+    # Values for un-normalizing images
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+
+    for i, q_idx in enumerate(indices):
+        q_pid = q_pids[q_idx]
+        q_camid = q_camids[q_idx]
+
+        # Filter junk gallery images for this specific query
+        valid_mask = ~((g_pids == q_pid) & (g_camids == q_camid))
+        valid_indices = np.where(valid_mask)[0]
+        valid_distances = dist_matrix[q_idx][valid_mask]
+
+        # Get Rank-1 index
+        top1_local_idx = np.argmin(valid_distances)
+        top1_global_idx = valid_indices[top1_local_idx]
+
+        pred_pid = g_pids[top1_global_idx]
+        is_correct = pred_pid == q_pid
+        color = "green" if is_correct else "red"
+
+        # --- Helper to process tensor to image ---
+        def denormalize(tensor):
+            img = tensor.permute(1, 2, 0).numpy()
+            img = img * std + mean
+            return np.clip(img, 0, 1)
+
+        # Plot Query
+        ax_q = plt.subplot(4, 8, 2 * i + 1)
+        plt.imshow(denormalize(q_ds[q_idx][0]))
+        plt.title(f"Q: {q_pid}", fontsize=9)
+        plt.axis("off")
+
+        # Plot Match
+        ax_m = plt.subplot(4, 8, 2 * i + 2)
+        plt.imshow(denormalize(g_ds[top1_global_idx][0]))
+        plt.title(f"R1: {pred_pid}", color=color, fontsize=9, fontweight="bold")
+
+        # Add colored border
+        for spine in ax_m.spines.values():
+            spine.set_edgecolor(color)
+            spine.set_linewidth(3)
+            spine.set_visible(True)
+        ax_m.set_xticks([])
+        ax_m.set_yticks([])
+
+    plt.suptitle("Person Re-ID Results: Green=Correct, Red=Incorrect", fontsize=16)
+    plt.tight_layout()
+    plt.savefig("res.jpg")
+    plt.show()
+
+
 def evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -121,6 +179,7 @@ def evaluate():
         ]
     )
 
+    # Get number of classes from training set to initialize model architecture
     train_path = os.path.join(DEFAULT_DATA_PATH, "bounding_box_train")
     train_ds = MarketSiameseDataset(train_path)
     num_classes = train_ds.num_ids
@@ -135,8 +194,6 @@ def evaluate():
     else:
         print("Warning: Checkpoint not found, using random weights.")
 
-    model.eval()
-
     gallery_ds = MarketEvalDataset(
         os.path.join(DEFAULT_DATA_PATH, "bounding_box_test"), transform=transform
     )
@@ -148,25 +205,27 @@ def evaluate():
     query_loader = DataLoader(query_ds, batch_size=64, shuffle=False, num_workers=4)
 
     print(f"Query images: {len(query_ds)}, Gallery images: {len(gallery_ds)}")
-    print("Extracting features...")
 
     q_feat, q_pids, q_camids = extract_features(model, query_loader, device)
     g_feat, g_pids, g_camids = extract_features(model, gallery_loader, device)
 
-    print("Computing distance matrix (Cosine) and metrics...")
+    print("Computing distance matrix...")
     dist_matrix = cdist(q_feat, g_feat, metric="cosine")
 
     r1, r5, mAP = compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids)
 
     print("\n" + "=" * 30)
-    print("EVALUATION (COSINE DISTANCE)")
+    print("EVALUATION RESULTS")
     print("=" * 30)
-    print(f"Query:   {len(q_pids)} images")
-    print(f"Gallery: {len(g_pids)} images")
     print(f"Rank-1:  {r1:.2f}%")
     print(f"Rank-5:  {r5:.2f}%")
     print(f"mAP:     {mAP:.2f}%")
-    print("=" * 30)
+    print("=" * 30 + "\n")
+
+    # Run the visualization
+    visualize_results(
+        query_ds, gallery_ds, dist_matrix, q_pids, g_pids, q_camids, g_camids
+    )
 
 
 if __name__ == "__main__":
