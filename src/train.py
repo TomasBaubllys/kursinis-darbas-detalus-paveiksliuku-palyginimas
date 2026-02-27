@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import download_data
+from center_loss import Center_Loss
 from cross_entropy_label_smooth import Cross_Entropy_Label_Smooth
 from dataset import DEFAULT_DATA_PATH, MarketSiameseDataset
 from pksampler import PKSampler
@@ -34,7 +35,6 @@ def train():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Paper's recommended augmentations
     transformations = transforms.Compose(
         [
             transforms.Resize((256, 128)),
@@ -58,12 +58,13 @@ def train():
 
     siamese_net = ResNet18_BoT(num_classes=num_classes).to(device)
 
-    # Paper uses margin=0.3 for Batch Hard Triplet
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
     criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
+    criterion_center = Center_Loss(num_classes=num_classes).to(device)
+    center_loss_weight = 0.0005
 
-    # TRICK: Warmup Learning Rate Schedule
     optimizer = optim.Adam(siamese_net.parameters(), lr=3.5e-4, weight_decay=5e-4)
+    center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
     def lr_lambda(epoch):
         if epoch < 10:
@@ -90,9 +91,11 @@ def train():
 
             loss_triplet = criterion_triplet(embeddings, labels)
             loss_id = criterion_id(logits, labels)
-            total_loss = loss_triplet + loss_id
+            loss_center = criterion_center(embeddings, labels)
+            total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
 
             optimizer.zero_grad()
+            center_optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
 
@@ -101,6 +104,11 @@ def train():
                 print(
                     f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {total_loss.item():.4f} (ID: {loss_id.item():.2f}, Trp: {loss_triplet.item():.2f})"
                 )
+
+            for param in criterion_center.parameters():
+                param.grad.data *= 1.0 / 0.0005
+
+            center_optimizer.step()
 
         scheduler.step()
         avg_loss = running_loss / len(dataloader)

@@ -11,7 +11,7 @@ from torchvision import transforms
 
 # Assuming these are in your local directory
 from dataset import MarketSiameseDataset
-from siamese_network import Siamese_Network
+from resnet18_bot import ResNet18_BoT
 
 DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/"
 
@@ -185,7 +185,7 @@ def evaluate():
     num_classes = train_ds.num_ids
 
     print(f"Initializing model with {num_classes} classes...")
-    model = Siamese_Network(num_classes=num_classes).to(device)
+    model = ResNet18_BoT(num_classes=num_classes).to(device)
 
     checkpoint_name = "siamese_resnet18_bot.pth"
     if os.path.exists(checkpoint_name):
