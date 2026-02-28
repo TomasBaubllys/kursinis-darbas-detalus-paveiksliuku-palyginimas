@@ -66,6 +66,7 @@ def extract_features(model, dataloader, device):
 
 
 def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
+    queries_with_matches = 0
     num_queries = len(q_pids)
     rank1_correct = 0
     rank5_correct = 0
@@ -85,6 +86,7 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
 
         matches = (ranked_pids == q_pid).astype(int)
         if matches.sum() == 0:
+            queries_with_matches += 1
             continue
 
         if ranked_pids[0] == q_pid:
@@ -97,11 +99,25 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
         ap = np.sum(precision_at_k * matches) / matches.sum()
         all_ap.append(ap)
 
-    return (
-        rank1_correct / num_queries * 100,
-        rank5_correct / num_queries * 100,
-        np.mean(all_ap) * 100,
-    )
+        r1 = (
+            (rank1_correct / queries_with_matches * 100)
+            if queries_with_matches > 0
+            else 0
+        )
+        r5 = (
+            (rank5_correct / queries_with_matches * 100)
+            if queries_with_matches > 0
+            else 0
+        )
+        mAP = (np.mean(all_ap) * 100) if all_ap else 0
+
+        return r1, r5, mAP
+
+        # return (
+        # rank1_correct / num_queries * 100,
+        # rank5_correct / num_queries * 100,
+        # np.mean(all_ap) * 100 if all_ap else 0,
+        # )
 
 
 def visualize_results(
