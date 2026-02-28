@@ -208,7 +208,7 @@ if __name__ == "__main__":
     rerank = False
 
     for arg in args:
-        if arg in ("-rr", "--rerank")
+        if arg in ("-rr", "--rerank"):
             rerank = True
 
     evaluate(use_reranking=rerank)
