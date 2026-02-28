@@ -1,4 +1,5 @@
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,41 +10,10 @@ from scipy.spatial.distance import cdist
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-# Assuming these are in your local directory
-from dataset import MarketSiameseDataset
+from dataset import Market_Eval_Dataset, Market_Train_Dataset
 from resnet18_bot import ResNet18_BoT
 
 DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/"
-
-
-class MarketEvalDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
-        self.transform = transform
-        self.samples = []  # list of (img_path, pid, camid)
-        full_dir = os.path.join(os.getcwd(), root_dir)
-
-        if not os.path.exists(full_dir):
-            raise FileNotFoundError(f"Directory {full_dir} not found.")
-
-        for f in sorted(os.listdir(full_dir)):
-            if not f.endswith(".jpg"):
-                continue
-            parts = f.split("_")
-            pid = parts[0]
-            camid = parts[1]
-            if pid in ["-1", "0000"]:
-                continue
-            self.samples.append((os.path.join(full_dir, f), pid, camid))
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        img_path, pid, camid = self.samples[idx]
-        img = Image.open(img_path).convert("RGB")
-        if self.transform:
-            img = self.transform(img)
-        return img, pid, camid
 
 
 def extract_features(model, dataloader, device):
@@ -79,7 +49,7 @@ def re_ranking(probFea, galFea, k1=20, k2=6, lambda_value=0.3):
         torch.pow(feat, 2).sum(dim=1, keepdim=True).expand(all_num, all_num)
         + torch.pow(feat, 2).sum(dim=1, keepdim=True).expand(all_num, all_num).t()
     )
-    distmat.addmm_(1, -2, feat, feat.t())
+    distmat.addmm_(feat, feat.t(), alpha=-2, beta=1)
     original_dist = distmat.cpu().numpy()
     del feat
 
@@ -196,7 +166,7 @@ def evaluate(use_reranking=True):
     )
 
     train_path = os.path.join(DEFAULT_DATA_PATH, "bounding_box_train")
-    train_ds = MarketSiameseDataset(train_path)
+    train_ds = Market_Train_Dataset(train_path)
     num_classes = train_ds.num_ids
 
     model = ResNet18_BoT(num_classes=num_classes).to(device)
@@ -206,10 +176,10 @@ def evaluate(use_reranking=True):
         model.load_state_dict(torch.load(checkpoint_name, map_location=device))
         print(f"Loaded {checkpoint_name}")
 
-    query_ds = MarketEvalDataset(
+    query_ds = Market_Eval_Dataset(
         os.path.join(DEFAULT_DATA_PATH, "query"), transform=transform
     )
-    gallery_ds = MarketEvalDataset(
+    gallery_ds = Market_Eval_Dataset(
         os.path.join(DEFAULT_DATA_PATH, "bounding_box_test"), transform=transform
     )
 
@@ -234,4 +204,11 @@ def evaluate(use_reranking=True):
 
 
 if __name__ == "__main__":
-    evaluate(use_reranking=True)
+    args = sys.argv[1:]
+    rerank = False
+
+    for arg in args:
+        if arg in ("-rr", "--rerank")
+            rerank = True
+
+    evaluate(use_reranking=rerank)

@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 import download_data
 from center_loss import Center_Loss
 from cross_entropy_label_smooth import Cross_Entropy_Label_Smooth
-from dataset import DEFAULT_DATA_PATH, MarketSiameseDataset
+from dataset import DEFAULT_DATA_PATH, Market_Train_Dataset
 from pksampler import PKSampler
 from resnet18_bot import ResNet18_BoT
 from triplet_loss import Batch_Hard_Triplet_Loss
@@ -20,15 +20,9 @@ from triplet_loss import Batch_Hard_Triplet_Loss
 CHECKPOINT_PATH = "../checkpoint"
 
 
-def train():
-    plot_loss = False
-    if len(sys.argv) > 1:
-        args = sys.argv[1:]
-        for arg in args:
-            if arg in ("-red", "--refresh_data"):
-                download_data.setup_market1501()
-            if arg in ("-plst", "--plot_loss"):
-                plot_loss = True
+def train(refresh_data=False, plot_loss=False):
+    if refresh_data:
+        download_data.setup_market1501()
 
     if not os.path.exists(CHECKPOINT_PATH):
         os.makedirs(CHECKPOINT_PATH)
@@ -45,11 +39,13 @@ def train():
             transforms.RandomCrop((256, 128)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            transforms.RandomErasing(p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"),
+            transforms.RandomErasing(
+                p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"
+            ),
         ]
     )
 
-    market_dataset = MarketSiameseDataset(DEFAULT_DATA_PATH, transform=transformations)
+    market_dataset = Market_Train_Dataset(DEFAULT_DATA_PATH, transform=transformations)
     num_classes = market_dataset.num_ids
 
     p_val, k_val = 16, 4
@@ -137,4 +133,15 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    r_data = False
+    plot_lst = False
+
+    if len(sys.argv) > 1:
+        args = sys.argv[1:]
+        for arg in args:
+            if arg in ("-red", "--refresh_data"):
+                r_data = True
+            if arg in ("-plst", "--plot_loss"):
+                plot_lst = True
+
+    train(refresh_data=r_data, plot_loss=plot_lst)
