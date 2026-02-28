@@ -129,7 +129,7 @@ def train():
         }
         torch.save(checkpoint, os.path.join(CHECKPOINT_PATH, f"checkpoint_{epoch}.pth"))
 
-    torch.save(siamese_net.state_dict(), "siamese_resnet18_bot.pth")
+    torch.save(siamese_net.state_dict(), "resnet18_bot.pth")
     if plot_loss:
         plt.plot(np.array(loss_hist)[:, 1])
         plt.savefig("loss_hist.jpg")
