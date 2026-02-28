@@ -140,12 +140,10 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
         if np.any(ranked_pids[:5] == q_pid):
             rank5_correct += 1
 
-        # Average Precision
         precision_at_k = np.cumsum(matches) / (np.arange(len(matches)) + 1)
         ap = np.sum(precision_at_k * matches) / matches.sum()
         all_ap.append(ap)
 
-    # FIXED: Moved outside the for loop
     return (
         rank1_correct / num_queries * 100,
         rank5_correct / num_queries * 100,
