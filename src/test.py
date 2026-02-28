@@ -86,9 +86,10 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
 
         matches = (ranked_pids == q_pid).astype(int)
         if matches.sum() == 0:
-            queries_with_matches += 1
             continue
 
+        queries_with_matches += 1
+        
         if ranked_pids[0] == q_pid:
             rank1_correct += 1
         if np.any(ranked_pids[:5] == q_pid):
