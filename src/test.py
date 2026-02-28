@@ -97,11 +97,11 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
         ap = np.sum(precision_at_k * matches) / matches.sum()
         all_ap.append(ap)
 
-        return (
-            rank1_correct / num_queries * 100,
-            rank5_correct / num_queries * 100,
-            np.mean(all_ap) * 100 if all_ap else 0,
-        )
+    return (
+        rank1_correct / num_queries * 100,
+        rank5_correct / num_queries * 100,
+        np.mean(all_ap) * 100 if all_ap else 0,
+    )
 
 
 def visualize_results(
