@@ -7,14 +7,14 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/CSer-Tang-hao/BSFA-FSFG.git .
+RUN git clone https://github.com/TomasBaubllys/kursinis-darbas-detalus-paveiksliuku-palyginimas.git .
 
-RUN pip install --no-cache-dir \
-    torchvision==0.17.2 \
-    scikit-image==0.18.1 \
-    tqdm \
-    matplotlib
+WORKDIR /workdir/src
 
-RUN mkdir -p data
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install --no-cache-dir -U typing-extensions
+
+RUN python download_data.py
 
 CMD ["/bin/bash"]

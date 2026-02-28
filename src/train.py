@@ -45,7 +45,7 @@ def train():
             transforms.RandomCrop((256, 128)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            transforms.RandomErasing(p=0.5, value="random"),
+            transforms.RandomErasing(p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"),
         ]
     )
 
