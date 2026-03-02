@@ -2,6 +2,8 @@ https://ieeexplore.ieee.org/abstract/document/8930088 // *** LABAI GERAS kodas: 
 
 https://arxiv.org/abs/2509.03032 // text-assisted Re-ID
 
+https://ieeexplore.ieee.org/abstract/document/8970561 // kalba apie illiumination ir light problems, kaip blogas apsvietimas gadina modelio performance
+
 https://www.sciencepubco.com/index.php/IJET/article/view/22889 // https://github.com/harveyslash/Facial-Similarity-with-Siamese-Networks-in-Pytorch?tab=readme-ov-file
 
 https://ieeexplore.ieee.org/document/10018260 // * Šitas panašu labai į temą, kalba apie background suppresion KODAS: https://github.com/CSer-Tang-hao/BSFA-FSFG.
