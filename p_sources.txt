@@ -1,4 +1,5 @@
 https://www.biorxiv.org/content/10.1101/2025.07.07.663143v1.full.pdf // idomus, siulo labai lightweight modeli, bet tik for animals with patterns
+https://docs.pytorch.org/tutorials/intermediate/realtime_rpi.html // naudinga gal bus, resnet18 yra trecias (9fps)
 
 https://ieeexplore.ieee.org/abstract/document/8930088 // *** LABAI GERAS kodas: https://github.com/michuanhaohao/reid-strong-baseline/tree/master
 
