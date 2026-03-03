@@ -1,0 +1,1 @@
+Imanoma tema: Palyginti Resnet18, 50 BoT and MobileNetV2 (ant raspberry pi 5), treniruot ant kompo, leist and pi5, lygint greiti, tiksluma ir t.t.
