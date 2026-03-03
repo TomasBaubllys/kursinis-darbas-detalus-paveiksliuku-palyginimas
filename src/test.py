@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 from dataset import Market_Eval_Dataset, Market_Train_Dataset
-from resnet18_bot import ResNet18_BoT
+from models import MobileNetV3_BoT, ResNet18_BoT
 
 DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/"
 
@@ -151,7 +151,12 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
     )
 
 
-def evaluate(use_reranking=True):
+def evaluate(
+    use_reranking=True,
+    weights_file="checkpoint.pth",
+    model_name="resnet18",
+    bot=False,
+):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     transform = transforms.Compose(
         [
@@ -167,9 +172,12 @@ def evaluate(use_reranking=True):
     train_ds = Market_Train_Dataset(train_path)
     num_classes = train_ds.num_ids
 
-    model = ResNet18_BoT(num_classes=num_classes).to(device)
+    if model_name == "resnet18":
+        model = ResNet18_BoT(num_classes=num_classes).to(device)
+    elif model_name == "mobilenetv3":
+        model = MobileNetV3_BoT(num_classes=num_classes, bot=bot).to(device)
 
-    checkpoint_name = "resnet18_bot.pth"
+    checkpoint_name = weights_file
     if os.path.exists(checkpoint_name):
         model.load_state_dict(torch.load(checkpoint_name, map_location=device))
         print(f"Loaded {checkpoint_name}")
@@ -204,9 +212,20 @@ def evaluate(use_reranking=True):
 if __name__ == "__main__":
     args = sys.argv[1:]
     rerank = False
+    model = "resnet18"
+    bot = False
 
     for arg in args:
         if arg in ("-rr", "--rerank"):
             rerank = True
+        if arg in ("-b", "--bot"):
+            bot = True
+        if arg in ("-mbnet", "--mobilenet"):
+            model = "mobilenetv3"
 
-    evaluate(use_reranking=rerank)
+    evaluate(
+        use_reranking=rerank,
+        weights_file=f"{model}_weights.pth",
+        model_name=model,
+        bot=bot,
+    )

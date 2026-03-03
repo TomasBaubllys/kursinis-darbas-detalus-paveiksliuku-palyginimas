@@ -13,14 +13,20 @@ import download_data
 from center_loss import Center_Loss
 from cross_entropy_label_smooth import Cross_Entropy_Label_Smooth
 from dataset import DEFAULT_DATA_PATH, Market_Train_Dataset
+from models import MobileNetV3_BoT, ResNet18_BoT
 from pksampler import PKSampler
-from resnet18_bot import ResNet18_BoT
 from triplet_loss import Batch_Hard_Triplet_Loss
 
 CHECKPOINT_PATH = "../checkpoint"
 
 
-def train(refresh_data=False, plot_loss=False):
+def train(
+    refresh_data=False,
+    plot_loss=False,
+    save_name="checkpoint.pth",
+    model_name="resnet18",
+    bot=False,
+):
     if refresh_data:
         download_data.setup_market1501()
 
@@ -54,14 +60,24 @@ def train(refresh_data=False, plot_loss=False):
         market_dataset, sampler=market_sampler, num_workers=4, batch_size=p_val * k_val
     )
 
-    siamese_net = ResNet18_BoT(num_classes=num_classes).to(device)
+    if model_name == "mobilenetv3":
+        model = MobileNetV3_BoT(num_classes=num_classes, bot=bot).to(device)
+    elif model_name == "resnet18":
+        model = ResNet18_BoT(num_classes=num_classes).to(device)
 
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
     criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
-    criterion_center = Center_Loss(num_classes=num_classes).to(device)
+
+    if model_name == "mobilenetv3":
+        criterion_center = Center_Loss(
+            num_classes=num_classes, feat_dim=model.feat_dim
+        ).to(device)
+    elif model_name == "resnet18":
+        criterion_center = Center_Loss(num_classes=num_classes).to(device)
+
     center_loss_weight = 0.0005
 
-    optimizer = optim.Adam(siamese_net.parameters(), lr=3.5e-4, weight_decay=5e-4)
+    optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
     center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
     def lr_lambda(epoch):
@@ -79,13 +95,13 @@ def train(refresh_data=False, plot_loss=False):
     num_epochs = 120
     loss_hist = []
 
-    siamese_net.train()
+    model.train()
     for epoch in range(num_epochs):
         running_loss = 0.0
         for i, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
 
-            embeddings, logits = siamese_net(images)
+            embeddings, logits = model(images)
 
             loss_triplet = criterion_triplet(embeddings, labels)
             loss_id = criterion_id(logits, labels)
@@ -120,12 +136,12 @@ def train(refresh_data=False, plot_loss=False):
         # Checkpoint Preservation
         checkpoint = {
             "epoch": epoch,
-            "model_state_dict": siamese_net.state_dict(),
+            "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
         }
         torch.save(checkpoint, os.path.join(CHECKPOINT_PATH, f"checkpoint_{epoch}.pth"))
 
-    torch.save(siamese_net.state_dict(), "resnet18_bot.pth")
+    torch.save(model.state_dict(), save_name)
     if plot_loss:
         plt.plot(np.array(loss_hist)[:, 1])
         plt.savefig("loss_hist.jpg")
@@ -135,6 +151,8 @@ def train(refresh_data=False, plot_loss=False):
 if __name__ == "__main__":
     r_data = False
     plot_lst = False
+    bot = False
+    model = "resnet18"
 
     if len(sys.argv) > 1:
         args = sys.argv[1:]
@@ -143,5 +161,14 @@ if __name__ == "__main__":
                 r_data = True
             if arg in ("-plst", "--plot_loss"):
                 plot_lst = True
-
-    train(refresh_data=r_data, plot_loss=plot_lst)
+            if arg in ("-b", "--bot"):
+                bot = True
+            if arg in ("-mbnet", "--mobilenet"):
+                model = "mobilenetv3"
+    train(
+        refresh_data=r_data,
+        plot_loss=plot_lst,
+        model_name=model,
+        bot=bot,
+        save_name=f"{model}_weights.pth",
+    )
