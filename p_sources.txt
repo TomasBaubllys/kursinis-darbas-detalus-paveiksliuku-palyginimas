@@ -1,3 +1,5 @@
+https://arxiv.org/html/2505.03303v1
+
 https://www.biorxiv.org/content/10.1101/2025.07.07.663143v1.full.pdf // idomus, siulo labai lightweight modeli, bet tik for animals with patterns
 https://docs.pytorch.org/tutorials/intermediate/realtime_rpi.html // naudinga gal bus, resnet18 yra trecias (9fps)
 
