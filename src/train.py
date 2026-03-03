@@ -35,21 +35,39 @@ def train(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    transformations = transforms.Compose(
-        [
-            transforms.Resize(
-                (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
-            ),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Pad(10),
-            transforms.RandomCrop((256, 128)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            transforms.RandomErasing(
-                p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"
-            ),
-        ]
-    )
+    if bot:
+        transformations = transforms.Compose(
+            [
+                transforms.Resize(
+                    (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+                ),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.Pad(10),
+                transforms.RandomCrop((256, 128)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+                transforms.RandomErasing(
+                    p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"
+                ),
+            ]
+        )
+    else:
+        transformations = transforms.Compose(
+            [
+                transforms.Resize(
+                    (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+                ),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.Pad(10),
+                transforms.RandomCrop((256, 128)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
 
     market_dataset = Market_Train_Dataset(DEFAULT_DATA_PATH, transform=transformations)
     num_classes = market_dataset.num_ids
@@ -82,7 +100,7 @@ def train(
 
     def lr_lambda(epoch):
         if epoch < 10:
-            return (epoch + 1) / 10  # Linear warmup
+            return (epoch + 1) / 10
         elif epoch < 40:
             return 1
         elif epoch < 70:
@@ -106,7 +124,10 @@ def train(
             loss_triplet = criterion_triplet(embeddings, labels)
             loss_id = criterion_id(logits, labels)
             loss_center = criterion_center(embeddings, labels)
-            total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
+            if bot:
+                total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
+            else:
+                total_loss = loss_id
 
             optimizer.zero_grad()
             center_optimizer.zero_grad()
@@ -119,10 +140,11 @@ def train(
                     f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {total_loss.item():.4f} (ID: {loss_id.item():.2f}, Trp: {loss_triplet.item():.2f})"
                 )
 
-            for param in criterion_center.parameters():
-                param.grad.data *= 1.0 / 0.0005
+            if bot:
+                for param in criterion_center.parameters():
+                    param.grad.data *= 1.0 / 0.0005
 
-            center_optimizer.step()
+                center_optimizer.step()
 
         scheduler.step()
         avg_loss = running_loss / len(dataloader)
