@@ -1,3 +1,5 @@
+https://www.mdpi.com/2076-3417/13/13/7804#:~:text=Abstract,accuracy%20and%20light%2Dweight%20architecture.
+
 https://arxiv.org/html/2505.03303v1
 
 https://www.biorxiv.org/content/10.1101/2025.07.07.663143v1.full.pdf // idomus, siulo labai lightweight modeli, bet tik for animals with patterns
