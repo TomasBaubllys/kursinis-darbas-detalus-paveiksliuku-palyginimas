@@ -17,15 +17,17 @@ from models import MobileNetV3_BoT, ResNet18_BoT
 from pksampler import PKSampler
 from triplet_loss import Batch_Hard_Triplet_Loss
 
+RESNET18_NAME="resnet18"
+MOBILENETV3_NAME="mobilenetv3"
 CHECKPOINT_PATH = "../checkpoint"
-
 
 def train(
     refresh_data=False,
     plot_loss=False,
     save_name="checkpoint.pth",
-    model_name="resnet18",
-    bot=False,
+    model_name=RESNET18_NAME,
+    bot_level_model=0,
+    bot_level_train=0
 ):
     if refresh_data:
         download_data.setup_market1501()
@@ -35,7 +37,7 @@ def train(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if bot:
+    if bot_level_train >= 1:
         transformations = transforms.Compose(
             [
                 transforms.Resize(
@@ -78,19 +80,19 @@ def train(
         market_dataset, sampler=market_sampler, num_workers=4, batch_size=p_val * k_val
     )
 
-    if model_name == "mobilenetv3":
-        model = MobileNetV3_BoT(num_classes=num_classes, bot=bot).to(device)
-    elif model_name == "resnet18":
+    if model_name == MOBILENETV3_NAME:
+        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot_level_model).to(device)
+    elif model_name == RESNET18_NAME:
         model = ResNet18_BoT(num_classes=num_classes).to(device)
 
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
     criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
 
-    if model_name == "mobilenetv3":
+    if model_name == MOBILENETV3_NAME:
         criterion_center = Center_Loss(
             num_classes=num_classes, feat_dim=model.feat_dim
         ).to(device)
-    elif model_name == "resnet18":
+    elif model_name == RESNET18_NAME:
         criterion_center = Center_Loss(num_classes=num_classes).to(device)
 
     center_loss_weight = 0.0005
@@ -124,10 +126,10 @@ def train(
             loss_triplet = criterion_triplet(embeddings, labels)
             loss_id = criterion_id(logits, labels)
             loss_center = criterion_center(embeddings, labels)
-            if bot:
+            if bot_level_train >= 2:
                 total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
             else:
-                total_loss = loss_id
+                total_loss = loss_id + loss_triplet
 
             optimizer.zero_grad()
             center_optimizer.zero_grad()
@@ -140,7 +142,7 @@ def train(
                     f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {total_loss.item():.4f} (ID: {loss_id.item():.2f}, Trp: {loss_triplet.item():.2f})"
                 )
 
-            if bot:
+            if bot_level_train >= 2:
                 for param in criterion_center.parameters():
                     param.grad.data *= 1.0 / 0.0005
 
@@ -173,8 +175,9 @@ def train(
 if __name__ == "__main__":
     r_data = False
     plot_lst = False
-    bot = False
-    model = "resnet18"
+    botm = 0
+    bott = 0
+    model = RESNET18_NAME
 
     if len(sys.argv) > 1:
         args = sys.argv[1:]
@@ -183,14 +186,17 @@ if __name__ == "__main__":
                 r_data = True
             if arg in ("-plst", "--plot_loss"):
                 plot_lst = True
-            if arg in ("-b", "--bot"):
-                bot = True
+            if arg.startswith(("-bm", "--bot_model")):
+                botm = int(arg.replace("--bot_model", "").replace("-bm", ""))
+            if arg.startswith(("-bt", "--bot_train")):
+                bott = int(arg.replace("--bot_train", "").replace("-bt", ""))
             if arg in ("-mbnet", "--mobilenet"):
-                model = "mobilenetv3"
+                model = MOBILENETV3_NAME
     train(
         refresh_data=r_data,
         plot_loss=plot_lst,
         model_name=model,
-        bot=bot,
+        bot_level_model=botm,
+        bot_level_train=bott,
         save_name=f"{model}_weights.pth",
     )

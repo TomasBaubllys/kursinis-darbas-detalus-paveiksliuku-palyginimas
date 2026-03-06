@@ -155,7 +155,7 @@ def evaluate(
     use_reranking=True,
     weights_file="checkpoint.pth",
     model_name="resnet18",
-    bot=False,
+    bot=0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     transform = transforms.Compose(
@@ -175,7 +175,7 @@ def evaluate(
     if model_name == "resnet18":
         model = ResNet18_BoT(num_classes=num_classes).to(device)
     elif model_name == "mobilenetv3":
-        model = MobileNetV3_BoT(num_classes=num_classes, bot=bot).to(device)
+        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot).to(device)
 
     checkpoint_name = weights_file
     if os.path.exists(checkpoint_name):
@@ -213,13 +213,13 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     rerank = False
     model = "resnet18"
-    bot = False
+    bot = 0
 
     for arg in args:
         if arg in ("-rr", "--rerank"):
             rerank = True
-        if arg in ("-b", "--bot"):
-            bot = True
+        if arg.startswith(("-b", "--bot")):
+            bot = int(arg.replace("--bot", "").replace("-b", ""))
         if arg in ("-mbnet", "--mobilenet"):
             model = "mobilenetv3"
 
