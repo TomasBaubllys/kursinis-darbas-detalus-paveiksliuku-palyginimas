@@ -171,6 +171,16 @@ def train(
         plt.savefig("loss_hist.jpg")
     print("Training Finished")
 
+def train_grid_search():
+    for i in range(4):
+        for j in range(3):
+            train(
+                refresh_data=False,
+                model_name=MOBILENETV3_NAME,
+                bot_level_model=i,
+                bot_level_train=j,
+                save_name=f"{MOBILENETV3_NAME}_botm{i}_bott{j}.pth"
+            )
 
 if __name__ == "__main__":
     r_data = False

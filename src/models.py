@@ -64,8 +64,6 @@ class MobileNetV3_BoT(nn.Module):
 
         self.feat_dim = in_features = mobilenet.classifier[0].in_features
 
-        print(self.bot)
-
         if bot_level == 0:
             self.bottleneck = nn.Identity()
             self.classifier = mobilenet.classifier

@@ -208,7 +208,6 @@ def evaluate(
     print(f"\nRESULTS {'(WITH RE-RANKING)' if use_reranking else '(BASELINE)'}")
     print(f"Rank-1: {r1:.2f}% | Rank-5: {r5:.2f}% | mAP: {mAP:.2f}%")
 
-
 if __name__ == "__main__":
     args = sys.argv[1:]
     rerank = False
