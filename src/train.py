@@ -202,6 +202,9 @@ if __name__ == "__main__":
                 bott = int(arg.replace("--bot_train", "").replace("-bt", ""))
             if arg in ("-mbnet", "--mobilenet"):
                 model = MOBILENETV3_NAME
+            if arg in ("-tgs", "--train_grid_search"):
+                train_grid_search()
+                exit()
     train(
         refresh_data=r_data,
         plot_loss=plot_lst,
