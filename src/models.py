@@ -98,15 +98,14 @@ class MobileNetV3_BoT(nn.Module):
         x = self.backbone(x)
         x = self.gap(x)
         global_feat = x.view(x.shape[0], -1)
-        if self.bot == 0:
+        if self.bot != 0:
+            bn_feat = self.bottleneck(global_feat)
             if self.training:
-                cls_score = self.classifier(global_feat)
+                cls_score = self.classifier(bn_feat)
                 return global_feat, cls_score
-            else:
-                return global_feat
+            return bn_feat
 
-        bn_feat = self.bottleneck(global_feat)
         if self.training:
-            logits = self.classifier(bn_feat)
+            logits = self.classifier(global_feat)
             return global_feat, logits
-        return bn_feat
+        return global_feat
