@@ -108,4 +108,4 @@ class MobileNetV3_BoT(nn.Module):
             logits = self.classifier(global_feat)
             if self.training:
                 return global_feat, logits
-            return logits
+            return global_feat
