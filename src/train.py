@@ -17,9 +17,24 @@ from models import MobileNetV3_BoT, ResNet18_BoT
 from pksampler import PKSampler
 from triplet_loss import Batch_Hard_Triplet_Loss
 
-RESNET18_NAME="resnet18"
-MOBILENETV3_NAME="mobilenetv3"
+RESNET18_NAME = "resnet18"
+MOBILENETV3_NAME = "mobilenetv3"
 CHECKPOINT_PATH = "../checkpoint"
+
+
+def graph_loss(loss_hist, epochs, loss_names):
+    x = np.arange(epochs)
+    plt.figure()
+    for i, name in enumerate(loss_names):
+        plt.plot(x, loss_hist[i], label=name)
+
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title(f"{name} loss over epochs")
+    plt.legend()
+    plt.savefig(f"{name}.jpg")
+    plt.close()
+
 
 def train(
     refresh_data=False,
@@ -27,7 +42,7 @@ def train(
     save_name="checkpoint.pth",
     model_name=RESNET18_NAME,
     bot_level_model=0,
-    bot_level_train=0
+    bot_level_train=0,
 ):
     if refresh_data:
         download_data.setup_market1501()
@@ -61,7 +76,6 @@ def train(
                 transforms.Resize(
                     (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
                 ),
-                transforms.RandomHorizontalFlip(p=0.5),
                 transforms.Pad(10),
                 transforms.RandomCrop((256, 128)),
                 transforms.ToTensor(),
@@ -81,7 +95,9 @@ def train(
     )
 
     if model_name == MOBILENETV3_NAME:
-        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot_level_model).to(device)
+        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot_level_model).to(
+            device
+        )
     elif model_name == RESNET18_NAME:
         model = ResNet18_BoT(num_classes=num_classes).to(device)
 
@@ -128,8 +144,10 @@ def train(
             loss_center = criterion_center(embeddings, labels)
             if bot_level_train >= 2:
                 total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
+                loss_hist.append([loss_triplet, loss_id, loss_center])
             else:
-                total_loss = loss_id + loss_triplet
+           		loss_hist.append([loss_id, loss_triplet])
+             	total_loss = loss_id + loss_triplet
 
             optimizer.zero_grad()
             center_optimizer.zero_grad()
@@ -170,17 +188,21 @@ def train(
         plt.plot(np.array(loss_hist)[:, 1])
         plt.savefig("loss_hist.jpg")
     print("Training Finished")
+    return loss_hist
+
 
 def train_grid_search():
     for i in range(4):
         for j in range(3):
-            train(
+            loss = train(
                 refresh_data=False,
                 model_name=MOBILENETV3_NAME,
                 bot_level_model=i,
                 bot_level_train=j,
-                save_name=f"{MOBILENETV3_NAME}_botm{i}_bott{j}.pth"
+                save_name=f"{MOBILENETV3_NAME}_botm{i}_bott{j}.pth",
             )
+            graph_loss(loss, len(loss), f"{MOBILENETV3_NAME}_botm{i}_bott{j}" )
+
 
 if __name__ == "__main__":
     r_data = False
