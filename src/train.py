@@ -17,23 +17,25 @@ from dataset import DEFAULT_DATA_PATH, Market_Train_Dataset
 from models import MobileNetV3_BoT, ResNet18_BoT
 from pksampler import PKSampler
 from triplet_loss import Batch_Hard_Triplet_Loss
+from sklearn.model_selection import GroupKFold
 
 RESNET18_NAME = "resnet18"
 MOBILENETV3_NAME = "mobilenetv3"
 CHECKPOINT_PATH = "../checkpoint"
 
 
-def graph_loss(loss_hist, epochs, loss_names):
+def graph_loss(loss_hist, epochs, loss_names=["1", "2"], title=""):
     x = np.arange(epochs)
     plt.figure()
     for i, name in enumerate(loss_names):
-        plt.plot(x, loss_hist[i], label=name)
+        data = [val.detach().cpu().item() if hasattr(val, 'cpu') else val for val in loss_hist[i]]
+        plt.plot(x, data, label=name)
 
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
-    plt.title(f"{name} loss over epochs")
+    plt.title(f"{title}")
     plt.legend()
-    plt.savefig(f"{name}.jpg")
+    plt.savefig(f"{title}.jpg")
     plt.close()
 
 
@@ -130,25 +132,30 @@ def train(
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     num_epochs = 120
-    loss_hist = []
+    loss_hist = [[], [], [], []]
 
     model.train()
     for epoch in range(num_epochs):
         running_loss = 0.0
+        running_id_loss = 0.0
+        running_triplet_loss = 0.0
+        running_center_loss = 0.0
         for i, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
 
             embeddings, logits = model(images)
 
+            # calculate losses
             loss_triplet = criterion_triplet(embeddings, labels)
             loss_id = criterion_id(logits, labels)
             loss_center = criterion_center(embeddings, labels)
+
+            running_id_loss += loss_id
+            running_triplet_loss += loss_triplet
+            total_loss = loss_id + loss_triplet
             if bot_level_train >= 2:
-                total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
-                loss_hist.append([loss_triplet, loss_id, loss_center])
-            else:
-                loss_hist.append([loss_id, loss_triplet])
-                total_loss = loss_id + loss_triplet
+                total_loss += center_loss_weight * loss_center
+                running_center_loss += center_loss_weight * loss_center
 
             optimizer.zero_grad()
             center_optimizer.zero_grad()
@@ -169,12 +176,15 @@ def train(
 
         scheduler.step()
         avg_loss = running_loss / len(dataloader)
+        loss_hist[0].append(avg_loss)
+        loss_hist[1].append(running_id_loss / len(dataloader))
+        loss_hist[2].append(running_triplet_loss / len(dataloader))
+        loss_hist[3].append(running_center_loss / len(dataloader))
+
         current_lr = optimizer.param_groups[0]["lr"]
         print(
             f"Epoch {epoch + 1} complete. LR: {current_lr:.6f}, Avg Loss: {avg_loss:.4f}"
         )
-
-        loss_hist.append([epoch, avg_loss])
 
         # Checkpoint Preservation
         checkpoint = {
@@ -240,19 +250,21 @@ if __name__ == "__main__":
     #        if arg in ("-plst", "--plot_loss"):
     #            plot_lst = True
     #        if arg.startswith(("-bm", "--bot_model")):
-    #            botm = int(arg.replace("--bot_model", "").replace("-bm", ""))
+    #            botm = int(arg.replace("--bot_model", "").replace("-bm", ""))loss_names
     #        if arg.startswith(("-bt", "--bot_train")):
     #            bott = int(arg.replace("--bot_train", "").replace("-bt", ""))
     #        if arg in ("-mbnet", "--mobilenet"):
     #            model = MOBILENETV3_NAME
     #        if arg in ("-tgs", "--train_grid_search"):
     #            train_grid_search()
-    #            exit()
-    train(
+    #            exit()loss_names
+    loss = train(
         refresh_data=args.refresh_data,
         plot_loss=args.plot_loss,
-        model_name=model,
-        bot_level_model=bot_model,
-        bot_level_train=bot_train,
-        save_name=f"{model}_weights.pth",
+        model_name=args.model,
+        bot_level_model=args.bot_model,
+        bot_level_train=args.bot_train,
+        save_name=f"{args.model}_weights.pth",
     )
+
+    graph_loss(loss, epochs=len(loss[0]), loss_names=["Avg Loss", "ID Loss", "Triplet Loss", "Center Loss"], title=f"{MOBILENETV3_NAME}_botm{0}_bott{0}" )
