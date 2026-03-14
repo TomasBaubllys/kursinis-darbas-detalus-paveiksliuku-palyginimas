@@ -13,7 +13,7 @@ DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/bounding_box_train"
 
 
 class Market_Train_Dataset(Dataset):
-    def __init__(self, root_dir=DEFAULT_DATA_PATH, transform=None):
+    def __init__(self, root_dir=DEFAULT_DATA_PATH, transform=None, id_list=None):
         dataset_dir_train = root_dir
         full_dataset_dir = os.path.join(os.getcwd(), dataset_dir_train)
 
@@ -32,7 +32,10 @@ class Market_Train_Dataset(Dataset):
                         os.path.join(full_dataset_dir, f)
                     )
 
-        self.person_ids = sorted(list(self.id_to_images.keys()))
+        if id_list is not None:
+            self.person_ids = sorted(list(id_list))
+        else:
+            self.person_ids = sorted(list(self.id_to_images.keys()))
 
         self.id_to_label = {pid: i for i, pid in enumerate(self.person_ids)}
 
