@@ -234,30 +234,8 @@ def parse_arguments():
 
 
 if __name__ == "__main__":
-    #r_data = False
-    #plot_lst = False
-    #botm = 0
-    #bott = 0
-    #model = RESNET18_NAME
     args = parse_arguments()
 
-    #if len(sys.argv) > 1:
-    #    args = sys.argv[1:]
-
-    #    for arg in args:
-    #        if arg in ("-red", "--refresh_data"):
-    #            r_data = True
-    #        if arg in ("-plst", "--plot_loss"):
-    #            plot_lst = True
-    #        if arg.startswith(("-bm", "--bot_model")):
-    #            botm = int(arg.replace("--bot_model", "").replace("-bm", ""))loss_names
-    #        if arg.startswith(("-bt", "--bot_train")):
-    #            bott = int(arg.replace("--bot_train", "").replace("-bt", ""))
-    #        if arg in ("-mbnet", "--mobilenet"):
-    #            model = MOBILENETV3_NAME
-    #        if arg in ("-tgs", "--train_grid_search"):
-    #            train_grid_search()
-    #            exit()loss_names
     loss = train(
         refresh_data=args.refresh_data,
         plot_loss=args.plot_loss,
