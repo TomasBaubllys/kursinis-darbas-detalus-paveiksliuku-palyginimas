@@ -146,8 +146,8 @@ def train(
                 total_loss = loss_triplet + loss_id + center_loss_weight * loss_center
                 loss_hist.append([loss_triplet, loss_id, loss_center])
             else:
-           		loss_hist.append([loss_id, loss_triplet])
-             	total_loss = loss_id + loss_triplet
+                loss_hist.append([loss_id, loss_triplet])
+                total_loss = loss_id + loss_triplet
 
             optimizer.zero_grad()
             center_optimizer.zero_grad()
@@ -203,35 +203,55 @@ def train_grid_search():
             )
             graph_loss(loss, len(loss), f"{MOBILENETV3_NAME}_botm{i}_bott{j}" )
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Process model settings.")
+
+    parser.add_argument("-red", "--refresh_data", action="store_true", help="Redownload/ReUnzip data")
+    parser.add_argument("-pltls", "--plot_loss", action="store_true", help="Plot the loss of training data")
+    parser.add_argument("-pltv", "--plot_validation", action="store_true", help="Plot the validation results from training")
+    parser.add_argument("-tgs", "--train_grid_search", action="store_true", help="Do training with all the possible combinations of BoT levels")
+
+
+    parser.add_argument("-bm", "--bot_model", type=int, default=1, help="Set BoT level for the model itself")
+
+    parser.add_argument("-bt", "--bot_train", type=int, default=1, help="Set BoT level for the training function")
+
+    parser.add_argument("-mbnet", "--mobilenet", action="store_const",
+                        const="mobilenetv3", dest="model", help="Use MobileNetV3")
+
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    r_data = False
-    plot_lst = False
-    botm = 0
-    bott = 0
-    model = RESNET18_NAME
+    #r_data = False
+    #plot_lst = False
+    #botm = 0
+    #bott = 0
+    #model = RESNET18_NAME
+    args = parse_arguments()
 
-    if len(sys.argv) > 1:
-        args = sys.argv[1:]
-        for arg in args:
-            if arg in ("-red", "--refresh_data"):
-                r_data = True
-            if arg in ("-plst", "--plot_loss"):
-                plot_lst = True
-            if arg.startswith(("-bm", "--bot_model")):
-                botm = int(arg.replace("--bot_model", "").replace("-bm", ""))
-            if arg.startswith(("-bt", "--bot_train")):
-                bott = int(arg.replace("--bot_train", "").replace("-bt", ""))
-            if arg in ("-mbnet", "--mobilenet"):
-                model = MOBILENETV3_NAME
-            if arg in ("-tgs", "--train_grid_search"):
-                train_grid_search()
-                exit()
+    #if len(sys.argv) > 1:
+    #    args = sys.argv[1:]
+
+    #    for arg in args:
+    #        if arg in ("-red", "--refresh_data"):
+    #            r_data = True
+    #        if arg in ("-plst", "--plot_loss"):
+    #            plot_lst = True
+    #        if arg.startswith(("-bm", "--bot_model")):
+    #            botm = int(arg.replace("--bot_model", "").replace("-bm", ""))
+    #        if arg.startswith(("-bt", "--bot_train")):
+    #            bott = int(arg.replace("--bot_train", "").replace("-bt", ""))
+    #        if arg in ("-mbnet", "--mobilenet"):
+    #            model = MOBILENETV3_NAME
+    #        if arg in ("-tgs", "--train_grid_search"):
+    #            train_grid_search()
+    #            exit()
     train(
-        refresh_data=r_data,
-        plot_loss=plot_lst,
+        refresh_data=args.refresh_data,
+        plot_loss=args.plot_loss,
         model_name=model,
-        bot_level_model=botm,
-        bot_level_train=bott,
+        bot_level_model=bot_model,
+        bot_level_train=bot_train,
         save_name=f"{model}_weights.pth",
     )
