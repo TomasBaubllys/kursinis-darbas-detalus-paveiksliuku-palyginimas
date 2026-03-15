@@ -1,16 +1,16 @@
+import argparse
 import os
 import sys
-import argparse
 
-import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
 from sklearn.model_selection import KFold
+from torch.utils.data import DataLoader
 
 import download_data
 from center_loss import Center_Loss
@@ -23,11 +23,8 @@ from triplet_loss import Batch_Hard_Triplet_Loss
 RESNET18_NAME = "resnet18"
 MOBILENETV3_NAME = "mobilenetv3"
 CHECKPOINT_PATH = "../checkpoint"
+WEIGHTS_PATH = "./weights/"
 
-
-# ---------------------------------------------------------------------------
-# Plotting helpers
-# ---------------------------------------------------------------------------
 
 def graph_loss(loss_hist, epochs, loss_names=["1", "2"], title=""):
     """Plot multiple loss curves and save to disk."""
@@ -50,7 +47,9 @@ def graph_loss(loss_hist, epochs, loss_names=["1", "2"], title=""):
     print(f"  [Plot saved] {title}.jpg")
 
 
-def plot_fold_summary(all_fold_train_losses, all_fold_val_losses, num_epochs, model_name):
+def plot_fold_summary(
+    all_fold_train_losses, all_fold_val_losses, num_epochs, model_name
+):
     """
     After all folds are done, plot:
       1. Per-fold train loss curves on one figure.
@@ -100,32 +99,41 @@ def plot_fold_summary(all_fold_train_losses, all_fold_val_losses, num_epochs, mo
     plt.savefig(out)
     plt.close()
     print(f"  [Plot saved] {out}")
-
     # ---- 3. Mean ± std band (train vs val) ----
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Mean ± Std across {n_folds} Folds", fontsize=14)
     for li, (ax, label) in enumerate(zip(axes.flat, loss_labels)):
         # train
-        train_matrix = np.array([
-            [v.detach().cpu().item() if hasattr(v, "cpu") else v
-             for v in fold_hist[li]]
-            for fold_hist in all_fold_train_losses
-        ])  # shape: (n_folds, num_epochs)
+        train_matrix = np.array(
+            [
+                [
+                    v.detach().cpu().item() if hasattr(v, "cpu") else v
+                    for v in fold_hist[li]
+                ]
+                for fold_hist in all_fold_train_losses
+            ]
+        )  # shape: (n_folds, num_epochs)WEIGHTS_PATH
         t_mean = train_matrix.mean(axis=0)
-        t_std  = train_matrix.std(axis=0)
+        t_std = train_matrix.std(axis=0)
         ax.plot(x, t_mean, label="Train mean", color="tab:blue")
         ax.fill_between(x, t_mean - t_std, t_mean + t_std, alpha=0.2, color="tab:blue")
 
         # val
-        val_matrix = np.array([
-            [v.detach().cpu().item() if hasattr(v, "cpu") else v
-             for v in fold_hist[li]]
-            for fold_hist in all_fold_val_losses
-        ])
+        val_matrix = np.array(
+            [
+                [
+                    v.detach().cpu().item() if hasattr(v, "cpu") else v
+                    for v in fold_hist[li]
+                ]
+                for fold_hist in all_fold_val_losses
+            ]
+        )
         v_mean = val_matrix.mean(axis=0)
-        v_std  = val_matrix.std(axis=0)
+        v_std = val_matrix.std(axis=0)
         ax.plot(x, v_mean, label="Val mean", color="tab:orange")
-        ax.fill_between(x, v_mean - v_std, v_mean + v_std, alpha=0.2, color="tab:orange")
+        ax.fill_between(
+            x, v_mean - v_std, v_mean + v_std, alpha=0.2, color="tab:orange"
+        )
 
         ax.set_title(label)
         ax.set_xlabel("Epoch")
@@ -155,7 +163,7 @@ def plot_single_fold(fold_train_hist, fold_val_hist, num_epochs, title):
             for v in fold_val_hist[li]
         ]
         ax.plot(x, train_data, label="Train", color="tab:blue")
-        ax.plot(x, val_data,   label="Val",   color="tab:orange")
+        ax.plot(x, val_data, label="Val", color="tab:orange")
         ax.set_title(label)
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
@@ -171,8 +179,17 @@ def plot_single_fold(fold_train_hist, fold_val_hist, num_epochs, title):
 # Validation helper
 # ---------------------------------------------------------------------------
 
-def validate_one_epoch(model, val_loader, criterion_triplet, criterion_id,
-                       criterion_center, center_loss_weight, bot_level_train, device):
+
+def validate_one_epoch(
+    model,
+    val_loader,
+    criterion_triplet,
+    criterion_id,
+    criterion_center,
+    center_loss_weight,
+    bot_level_train,
+    device,
+):
     """Run one pass over the validation dataloader and return average losses.
 
     We keep the model in train() mode so that the forward pass returns the
@@ -195,60 +212,74 @@ def validate_one_epoch(model, val_loader, criterion_triplet, criterion_id,
             embeddings, logits = out[0], out[1]
 
             loss_triplet = criterion_triplet(embeddings, labels)
-            loss_id      = criterion_id(logits, labels)
-            loss_center  = criterion_center(embeddings, labels)
+            loss_id = criterion_id(logits, labels)
+            loss_center = criterion_center(embeddings, labels)
 
             total = loss_id + loss_triplet
             if bot_level_train >= 2:
                 total += center_loss_weight * loss_center
                 running_center += (center_loss_weight * loss_center).item()
 
-            running_loss    += total.item()
-            running_id      += loss_id.item()
+            running_loss += total.item()
+            running_id += loss_id.item()
             running_triplet += loss_triplet.item()
 
     n = len(val_loader)
     return (
-        running_loss    / n,
-        running_id      / n,
+        running_loss / n,
+        running_id / n,
         running_triplet / n,
-        running_center  / n,
+        running_center / n,
     )
 
 
 # transformations
 def get_transformations(bot_level_train):
     if bot_level_train >= 1:
-        return transforms.Compose([
-            transforms.Resize((256, 128), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Pad(10),
-            transforms.RandomCrop((256, 128)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            transforms.RandomErasing(p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"),
-        ])
+        return transforms.Compose(
+            [
+                transforms.Resize(
+                    (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+                ),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.Pad(10),
+                transforms.RandomCrop((256, 128)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+                transforms.RandomErasing(
+                    p=0.5, scale=(0.02, 0.4), ratio=(0.3, 3.33), value="random"
+                ),
+            ]
+        )
     else:
-        return transforms.Compose([
-            transforms.Resize((256, 128), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.Pad(10),
-            transforms.RandomCrop((256, 128)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        return transforms.Compose(
+            [
+                transforms.Resize(
+                    (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+                ),
+                transforms.Pad(10),
+                transforms.RandomCrop((256, 128)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
 
 
 def get_val_transformations():
-    return transforms.Compose([
-        transforms.Resize((256, 128), interpolation=transforms.InterpolationMode.BILINEAR),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    return transforms.Compose(
+        [
+            transforms.Resize(
+                (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
 
-
-# ---------------------------------------------------------------------------
-# Main training function
-# ---------------------------------------------------------------------------
 
 def train(
     refresh_data=False,
@@ -258,7 +289,6 @@ def train(
     bot_level_model=0,
     bot_level_train=0,
 ):
-    """Original single-run training (no cross-validation)."""
     if refresh_data:
         download_data.setup_market1501()
 
@@ -280,7 +310,9 @@ def train(
     )
 
     if model_name == MOBILENETV3_NAME:
-        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot_level_model).to(device)
+        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot_level_model).to(
+            device
+        )
     elif model_name == RESNET18_NAME:
         model = ResNet18_BoT(num_classes=num_classes).to(device)
 
@@ -288,7 +320,9 @@ def train(
     criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
 
     if model_name == MOBILENETV3_NAME:
-        criterion_center = Center_Loss(num_classes=num_classes, feat_dim=model.feat_dim).to(device)
+        criterion_center = Center_Loss(
+            num_classes=num_classes, feat_dim=model.feat_dim
+        ).to(device)
     elif model_name == RESNET18_NAME:
         criterion_center = Center_Loss(num_classes=num_classes).to(device)
 
@@ -298,10 +332,14 @@ def train(
     center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
     def lr_lambda(epoch):
-        if epoch < 10:   return (epoch + 1) / 10
-        elif epoch < 40: return 1
-        elif epoch < 70: return 0.1
-        else:            return 0.01
+        if epoch < 10:
+            return (epoch + 1) / 10
+        elif epoch < 40:
+            return 1
+        elif epoch < 70:
+            return 0.1
+        else:
+            return 0.01
 
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
@@ -368,7 +406,8 @@ def train(
     torch.save(model.state_dict(), save_name)
     if plot_loss:
         graph_loss(
-            loss_hist, num_epochs,
+            loss_hist,
+            num_epochs,
             loss_names=["Avg Loss", "ID Loss", "Triplet Loss", "Center Loss"],
             title=f"{model_name}_loss",
         )
@@ -384,7 +423,6 @@ def train_kfold(
     bot_level_model=0,
     bot_level_train=0,
 ):
-    """KFold cross-validation training with per-epoch validation and full plotting."""
     if refresh_data:
         download_data.setup_market1501()
 
@@ -395,25 +433,25 @@ def train_kfold(
     print(f"Using device: {device}")
 
     full_dataset = Market_Train_Dataset(DEFAULT_DATA_PATH)
-    all_pids     = np.array(full_dataset.person_ids)
+    all_pids = np.array(full_dataset.person_ids)
 
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
     all_fold_train_losses = []
-    all_fold_val_losses   = []
+    all_fold_val_losses = []
 
     train_transforms = get_transformations(bot_level_train)
-    val_transforms   = get_val_transformations()
+    val_transforms = get_val_transformations()
 
     num_epochs = 120
 
     for fold, (train_pid_idx, val_pid_idx) in enumerate(kf.split(all_pids)):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  FOLD {fold + 1} / 5")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         train_pids = list(all_pids[train_pid_idx])
-        val_pids   = list(all_pids[val_pid_idx])
+        val_pids = list(all_pids[val_pid_idx])
 
         train_dataset = Market_Train_Dataset(
             DEFAULT_DATA_PATH, transform=train_transforms, id_list=train_pids
@@ -423,54 +461,66 @@ def train_kfold(
         )
 
         num_classes = train_dataset.num_ids
-        print(f"  Train PIDs: {len(train_pids)} | Val PIDs: {len(val_pids)} | Classes: {num_classes}")
-
-        p_val, k_val  = 16, 4
-        train_sampler = PKSampler(train_dataset, p=p_val, k=k_val)
-        train_loader  = DataLoader(
-            train_dataset, sampler=train_sampler,
-            num_workers=4, batch_size=p_val * k_val
+        print(
+            f"  Train PIDs: {len(train_pids)} | Val PIDs: {len(val_pids)} | Classes: {num_classes}"
         )
 
-        val_p       = min(p_val, len(val_pids))
+        p_val, k_val = 16, 4
+        train_sampler = PKSampler(train_dataset, p=p_val, k=k_val)
+        train_loader = DataLoader(
+            train_dataset,
+            sampler=train_sampler,
+            num_workers=4,
+            batch_size=p_val * k_val,
+        )
+
+        val_p = min(p_val, len(val_pids))
         val_sampler = PKSampler(val_dataset, p=val_p, k=k_val)
-        val_loader  = DataLoader(
-            val_dataset, sampler=val_sampler,
-            num_workers=4, batch_size=val_p * k_val
+        val_loader = DataLoader(
+            val_dataset, sampler=val_sampler, num_workers=4, batch_size=val_p * k_val
         )
 
         if model_name == MOBILENETV3_NAME:
-            model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot_level_model).to(device)
+            model = MobileNetV3_BoT(
+                num_classes=num_classes, bot_level=bot_level_model
+            ).to(device)
         elif model_name == RESNET18_NAME:
             model = ResNet18_BoT(num_classes=num_classes).to(device)
+        else:
+            raise ValueError("Unrecognized model!")
 
         criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
-        criterion_id      = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
+        criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
 
         if model_name == MOBILENETV3_NAME:
-            criterion_center = Center_Loss(num_classes=num_classes, feat_dim=model.feat_dim).to(device)
+            criterion_center = Center_Loss(
+                num_classes=num_classes, feat_dim=model.feat_dim
+            ).to(device)
         elif model_name == RESNET18_NAME:
             criterion_center = Center_Loss(num_classes=num_classes).to(device)
 
         center_loss_weight = 0.0005
 
-        optimizer        = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
+        optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
         center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
         def lr_lambda(epoch):
-            if epoch < 10:   return (epoch + 1) / 10
-            elif epoch < 40: return 1.0
-            elif epoch < 70: return 0.1
-            else:            return 0.01
+            if epoch < 10:
+                return (epoch + 1) / 10
+            elif epoch < 40:
+                return 1.0
+            elif epoch < 70:
+                return 0.1
+            else:
+                return 0.01
 
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
         train_loss_hist = [[], [], [], []]
-        val_loss_hist   = [[], [], [], []]
+        val_loss_hist = [[], [], [], []]
 
         model.train()
         for epoch in range(num_epochs):
-
             running_loss = running_id = running_triplet = running_center = 0.0
 
             for i, (images, labels) in enumerate(train_loader):
@@ -478,15 +528,15 @@ def train_kfold(
                 embeddings, logits = model(images)
 
                 loss_triplet = criterion_triplet(embeddings, labels)
-                loss_id      = criterion_id(logits, labels)
-                loss_center  = criterion_center(embeddings, labels)
+                loss_id = criterion_id(logits, labels)
+                loss_center = criterion_center(embeddings, labels)
 
-                running_id      += loss_id.item()
+                running_id += loss_id.item()
                 running_triplet += loss_triplet.item()
-                total_loss       = loss_id + loss_triplet
+                total_loss = loss_id + loss_triplet
 
                 if bot_level_train >= 2:
-                    total_loss     += center_loss_weight * loss_center
+                    total_loss += center_loss_weight * loss_center
                     running_center += (center_loss_weight * loss_center).item()
 
                 optimizer.zero_grad()
@@ -503,24 +553,29 @@ def train_kfold(
 
                 if (i + 1) % 10 == 0:
                     print(
-                        f"  Fold [{fold+1}] Epoch [{epoch+1}/{num_epochs}] "
-                        f"Step [{i+1}/{len(train_loader)}] "
+                        f"  Fold [{fold + 1}] Epoch [{epoch + 1}/{num_epochs}] "
+                        f"Step [{i + 1}/{len(train_loader)}] "
                         f"Loss: {total_loss.item():.4f} "
                         f"(ID: {loss_id.item():.2f}, Trp: {loss_triplet.item():.2f})"
                     )
 
             n_train = len(train_loader)
-            train_loss_hist[0].append(running_loss    / n_train)
-            train_loss_hist[1].append(running_id      / n_train)
+            train_loss_hist[0].append(running_loss / n_train)
+            train_loss_hist[1].append(running_id / n_train)
             train_loss_hist[2].append(running_triplet / n_train)
-            train_loss_hist[3].append(running_center  / n_train)
+            train_loss_hist[3].append(running_center / n_train)
 
             scheduler.step()
 
             avg_val, val_id, val_trip, val_cen = validate_one_epoch(
-                model, val_loader,
-                criterion_triplet, criterion_id, criterion_center,
-                center_loss_weight, bot_level_train, device
+                model,
+                val_loader,
+                criterion_triplet,
+                criterion_id,
+                criterion_center,
+                center_loss_weight,
+                bot_level_train,
+                device,
             )
             val_loss_hist[0].append(avg_val)
             val_loss_hist[1].append(val_id)
@@ -529,9 +584,9 @@ def train_kfold(
 
             current_lr = optimizer.param_groups[0]["lr"]
             print(
-                f"  >> Fold {fold+1} | Epoch {epoch+1}/{num_epochs} | "
+                f"  >> Fold {fold + 1} | Epoch {epoch + 1}/{num_epochs} | "
                 f"LR: {current_lr:.6f} | "
-                f"Train Loss: {running_loss/n_train:.4f} | "
+                f"Train Loss: {running_loss / n_train:.4f} | "
                 f"Val Loss: {avg_val:.4f}"
             )
 
@@ -542,7 +597,9 @@ def train_kfold(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                os.path.join(CHECKPOINT_PATH, f"checkpoint_fold{fold}_epoch{epoch}.pth"),
+                os.path.join(
+                    CHECKPOINT_PATH, f"checkpoint_fold{fold}_epoch{epoch}.pth"
+                ),
             )
 
         fold_save_name = save_name.replace(".pth", f"_fold{fold}.pth")
@@ -551,23 +608,23 @@ def train_kfold(
 
         if plot_loss:
             plot_single_fold(
-                train_loss_hist, val_loss_hist, num_epochs,
-                title=f"{model_name}_fold{fold}_train_vs_val"
+                train_loss_hist,
+                val_loss_hist,
+                num_epochs,
+                title=f"{model_name}_fold{fold}_train_vs_val",
             )
 
         all_fold_train_losses.append(train_loss_hist)
         all_fold_val_losses.append(val_loss_hist)
 
     if plot_loss:
-        plot_fold_summary(all_fold_train_losses, all_fold_val_losses, num_epochs, model_name)
+        plot_fold_summary(
+            all_fold_train_losses, all_fold_val_losses, num_epochs, model_name
+        )
 
     print("\nTraining Finished (all folds)")
     return all_fold_train_losses, all_fold_val_losses
 
-
-# ---------------------------------------------------------------------------
-# Grid search
-# ---------------------------------------------------------------------------
 
 def train_grid_search():
     for i in range(4):
@@ -582,22 +639,55 @@ def train_grid_search():
             )
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process model settings.")
-    parser.add_argument("-red",  "--refresh_data",     action="store_true", help="Redownload/ReUnzip data")
-    parser.add_argument("-pltls","--plot_loss",         action="store_true", help="Plot the loss of training data")
-    parser.add_argument("-pltv", "--plot_validation",   action="store_true", help="Plot the validation results from training")
-    parser.add_argument("-tgs",  "--train_grid_search", action="store_true", help="Do training with all BoT level combinations")
-    parser.add_argument("-kf",   "--kfold",             action="store_true", help="Use 5-fold cross-validation instead of standard training")
-    parser.add_argument("-bm",   "--bot_model", type=int, default=1, help="Set BoT level for the model itself")
-    parser.add_argument("-bt",   "--bot_train", type=int, default=1, help="Set BoT level for the training function")
     parser.add_argument(
-        "-mbnet", "--mobilenet",
-        action="store_const", const=MOBILENETV3_NAME, dest="model",
+        "-red", "--refresh_data", action="store_true", help="Redownload/ReUnzip data"
+    )
+    parser.add_argument(
+        "-pltls",
+        "--plot_loss",
+        action="store_true",
+        help="Plot the loss of training data",
+    )
+    parser.add_argument(
+        "-pltv",
+        "--plot_validation",
+        action="store_true",
+        help="Plot the validation results from training",
+    )
+    parser.add_argument(
+        "-tgs",
+        "--train_grid_search",
+        action="store_true",
+        help="Do training with all BoT level combinations",
+    )
+    parser.add_argument(
+        "-kf",
+        "--kfold",
+        action="store_true",
+        help="Use 5-fold cross-validation instead of standard training",
+    )
+    parser.add_argument(
+        "-bm",
+        "--bot_model",
+        type=int,
+        default=1,
+        help="Set BoT level for the model itself",
+    )
+    parser.add_argument(
+        "-bt",
+        "--bot_train",
+        type=int,
+        default=1,
+        help="Set BoT level for the training function",
+    )
+    parser.add_argument(
+        "-mbnet",
+        "--mobilenet",
+        action="store_const",
+        const=MOBILENETV3_NAME,
+        dest="model",
         help="Use MobileNetV3",
     )
     parser.set_defaults(model=RESNET18_NAME)
@@ -607,13 +697,16 @@ def parse_arguments():
 if __name__ == "__main__":
     args = parse_arguments()
 
+    if not os.path.isdir(WEIGHTS_PATH):
+        os.makedirs(WEIGHTS_PATH)
+
     shared_kwargs = dict(
         refresh_data=args.refresh_data,
         plot_loss=args.plot_loss,
         model_name=args.model,
         bot_level_model=args.bot_model,
         bot_level_train=args.bot_train,
-        save_name=f"{args.model}_weights.pth",
+        save_name=f"{WEIGHTS_PATH}{args.model}_weights.pth",
     )
 
     if args.train_grid_search:
@@ -623,7 +716,8 @@ if __name__ == "__main__":
     else:
         loss_hist = train(**shared_kwargs)
         graph_loss(
-            loss_hist, epochs=len(loss_hist[0]),
+            loss_hist,
+            epochs=len(loss_hist[0]),
             loss_names=["Avg Loss", "ID Loss", "Triplet Loss", "Center Loss"],
             title=f"{args.model}_loss",
         )

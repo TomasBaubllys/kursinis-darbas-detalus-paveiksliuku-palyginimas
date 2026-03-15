@@ -8,7 +8,7 @@ do
 
 		if [ -f "$FILENAME" ]; then
 			echo "Running $FILENAME"
-			python test.py -mbnet -b${t} -rr -wf "$FILENAME" >> results.log
+			python test.py -mbnet -b${t} -wf "$FILENAME" >> results.log
 		fi
 	done
 done

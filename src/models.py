@@ -83,7 +83,9 @@ class MobileNetV3_BoT(nn.Module):
 
         if bot_level >= 3:
             block_idx = 13 if model_type == "large" else 8
-            self.backbone[block_idx].block[1][0].stride = (1, 1)
+            for m in self.backbone[block_idx].modules():
+                if isinstance(m, nn.Conv2d) and m.stride == (2, 2):
+                    m.stride = (1, 1)
 
     def weights_init_kaiming(self, m):
         if isinstance(m, nn.BatchNorm1d):
