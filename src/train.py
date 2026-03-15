@@ -175,11 +175,6 @@ def plot_single_fold(fold_train_hist, fold_val_hist, num_epochs, title):
     print(f"  [Plot saved] {out}")
 
 
-# ---------------------------------------------------------------------------
-# Validation helper
-# ---------------------------------------------------------------------------
-
-
 def validate_one_epoch(
     model,
     val_loader,
@@ -331,19 +326,30 @@ def train(
     optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
     center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
+    # original from the paper
+    # def lr_lambda(epoch):
+    #    if epoch < 10:
+    #        return (epoch + 1) / 10
+    #    elif epoch < 40:
+    #        return 1
+    #    elif epoch < 70:
+    #        return 0.1
+    #    else:
+    #        return 0.01
+    #
     def lr_lambda(epoch):
-        if epoch < 10:
-            return (epoch + 1) / 10
-        elif epoch < 40:
-            return 1
-        elif epoch < 70:
+        # if epoch < 10:
+        #    return (epoch + 1) / 10
+        if epoch < 150:
+            return 1.0
+        elif epoch < 180:
             return 0.1
         else:
             return 0.01
 
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-    num_epochs = 120
+    num_epochs = 200
     loss_hist = [[], [], [], []]
 
     model.train()
@@ -443,7 +449,7 @@ def train_kfold(
     train_transforms = get_transformations(bot_level_train)
     val_transforms = get_val_transformations()
 
-    num_epochs = 120
+    num_epochs = 200
 
     for fold, (train_pid_idx, val_pid_idx) in enumerate(kf.split(all_pids)):
         print(f"\n{'=' * 60}")
@@ -501,15 +507,16 @@ def train_kfold(
 
         center_loss_weight = 0.0005
 
+        # optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
         optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
         center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
         def lr_lambda(epoch):
-            if epoch < 10:
-                return (epoch + 1) / 10
-            elif epoch < 40:
+            # if epoch < 10:
+            #    return (epoch + 1) / 10
+            if epoch < 150:
                 return 1.0
-            elif epoch < 70:
+            elif epoch < 180:
                 return 0.1
             else:
                 return 0.01
@@ -695,6 +702,7 @@ def parse_arguments():
 
 
 if __name__ == "__main__":
+    torch.manual_seed(42)
     args = parse_arguments()
 
     if not os.path.isdir(WEIGHTS_PATH):
