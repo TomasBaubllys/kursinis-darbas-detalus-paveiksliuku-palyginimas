@@ -6,6 +6,8 @@ import torch
 from dataset import Market_Train_Dataset
 from models import MobileNetV3_BoT, ResNet18_BoT
 
+torch.backends.nnpack.enabled = False
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process model settings.")
