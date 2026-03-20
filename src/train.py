@@ -50,56 +50,98 @@ def graph_loss(loss_hist, epochs, loss_names=["1", "2"], title=""):
 def plot_fold_summary(
     all_fold_train_losses, all_fold_val_losses, num_epochs, model_name
 ):
-    """
-    After all folds are done, plot:
-      1. Per-fold train loss curves on one figure.
-      2. Per-fold val loss curves on one figure.
-      3. Mean ± std band across folds for both train and val.
-    """
     x = np.arange(1, num_epochs + 1)
     n_folds = len(all_fold_train_losses)
     loss_labels = ["Avg Loss", "ID Loss", "Triplet Loss", "Center Loss"]
 
-    # ---- 1. Per-fold training curves (one subplot per loss type) ----
+    # ---- 1. Per-fold training curves with Average ----
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Training Loss per Fold", fontsize=14)
     for li, (ax, label) in enumerate(zip(axes.flat, loss_labels)):
-        for fold_idx, fold_hist in enumerate(all_fold_train_losses):
-            data = [
-                v.detach().cpu().item() if hasattr(v, "cpu") else v
-                for v in fold_hist[li]
+        # Calculate matrix to get mean
+        train_matrix = np.array(
+            [
+                [
+                    v.detach().cpu().item() if hasattr(v, "cpu") else v
+                    for v in fold_hist[li]
+                ]
+                for fold_hist in all_fold_train_losses
             ]
-            ax.plot(x, data, label=f"Fold {fold_idx + 1}", alpha=0.8)
+        )
+
+        # Plot individual folds (lighter)
+        for fold_idx in range(n_folds):
+            ax.plot(
+                x,
+                train_matrix[fold_idx],
+                label=f"Fold {fold_idx + 1}",
+                alpha=0.5,
+                linewidth=1,
+            )
+
+        # Plot Average (thicker)
+        ax.plot(
+            x,
+            train_matrix.mean(axis=0),
+            label="TRAIN AVG",
+            color="black",
+            linewidth=2,
+            linestyle="--",
+        )
+
         ax.set_title(label)
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
-        ax.legend(fontsize=8)
-    plt.tight_layout()
-    out = f"{model_name}_train_per_fold.jpg"
-    plt.savefig(out)
-    plt.close()
-    print(f"  [Plot saved] {out}")
+        ax.legend(fontsize=8, loc="upper right")
 
-    # ---- 2. Per-fold validation curves ----
+    plt.tight_layout()
+    plt.savefig(f"{model_name}_train_per_fold.jpg")
+    plt.close()
+
+    # ---- 2. Per-fold validation curves with Average ----
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Validation Loss per Fold", fontsize=14)
     for li, (ax, label) in enumerate(zip(axes.flat, loss_labels)):
-        for fold_idx, fold_hist in enumerate(all_fold_val_losses):
-            data = [
-                v.detach().cpu().item() if hasattr(v, "cpu") else v
-                for v in fold_hist[li]
+        # Calculate matrix to get mean
+        val_matrix = np.array(
+            [
+                [
+                    v.detach().cpu().item() if hasattr(v, "cpu") else v
+                    for v in fold_hist[li]
+                ]
+                for fold_hist in all_fold_val_losses
             ]
-            ax.plot(x, data, label=f"Fold {fold_idx + 1}", alpha=0.8)
+        )
+
+        # Plot individual folds (lighter)
+        for fold_idx in range(n_folds):
+            ax.plot(
+                x,
+                val_matrix[fold_idx],
+                label=f"Fold {fold_idx + 1}",
+                alpha=0.5,
+                linewidth=1,
+            )
+
+        # Plot Average (thicker)
+        ax.plot(
+            x,
+            val_matrix.mean(axis=0),
+            label="VAL AVG",
+            color="black",
+            linewidth=2,
+            linestyle="--",
+        )
+
         ax.set_title(label)
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
-        ax.legend(fontsize=8)
+        ax.legend(fontsize=8, loc="upper right")
+
     plt.tight_layout()
-    out = f"{model_name}_val_per_fold.jpg"
-    plt.savefig(out)
+    plt.savefig(f"{model_name}_val_per_fold.jpg")
     plt.close()
-    print(f"  [Plot saved] {out}")
-    # ---- 3. Mean ± std band (train vs val) ----
+    # mean and std
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Mean ± Std across {n_folds} Folds", fontsize=14)
     for li, (ax, label) in enumerate(zip(axes.flat, loss_labels)):
@@ -283,6 +325,8 @@ def train(
     model_name=RESNET18_NAME,
     bot_level_model=0,
     bot_level_train=0,
+    lr_function=1,
+    num_epochs=120,
 ):
     if refresh_data:
         download_data.setup_market1501()
@@ -309,10 +353,16 @@ def train(
             device
         )
     elif model_name == RESNET18_NAME:
-        model = ResNet18_BoT(num_classes=num_classes).to(device)
+        model = ResNet18_BoT(num_classes=num_classes, bot_level=bot_level_model).to(
+            device
+        )
 
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
-    criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
+
+    if bot_level_train >= 2:
+        criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
+    else:
+        criterion_id = nn.CrossEntropyLoss().to(device)
 
     if model_name == MOBILENETV3_NAME:
         criterion_center = Center_Loss(
@@ -327,19 +377,17 @@ def train(
     center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
     # original from the paper
-    # def lr_lambda(epoch):
-    #    if epoch < 10:
-    #        return (epoch + 1) / 10
-    #    elif epoch < 40:
-    #        return 1
-    #    elif epoch < 70:
-    #        return 0.1
-    #    else:
-    #        return 0.01
-    #
-    def lr_lambda(epoch):
-        # if epoch < 10:
-        #    return (epoch + 1) / 10
+    def lr_lambda1(epoch):
+        if epoch < 10:
+            return (epoch + 1) / 10
+        if epoch < 40:
+            return 1
+        elif epoch < 70:
+            return 0.1
+        else:
+            return 0.01
+
+    def lr_lambda2(epoch):
         if epoch < 150:
             return 1.0
         elif epoch < 180:
@@ -347,9 +395,13 @@ def train(
         else:
             return 0.01
 
+    if lr_function == 1:
+        lr_lambda = lr_lambda1
+    else:
+        lr_lambda = lr_lambda2
+
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-    num_epochs = 200
     loss_hist = [[], [], [], []]
 
     model.train()
@@ -385,7 +437,7 @@ def train(
                     f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {total_loss.item():.4f} (ID: {loss_id.item():.2f}, Trp: {loss_triplet.item():.2f})"
                 )
 
-            if bot_level_train >= 2:
+            if bot_level_train >= 3:
                 for param in criterion_center.parameters():
                     param.grad.data *= 1.0 / center_loss_weight
                 center_optimizer.step()
@@ -428,6 +480,8 @@ def train_kfold(
     model_name=RESNET18_NAME,
     bot_level_model=0,
     bot_level_train=0,
+    lr_function=1,
+    num_epochs=120,
 ):
     if refresh_data:
         download_data.setup_market1501()
@@ -448,8 +502,6 @@ def train_kfold(
 
     train_transforms = get_transformations(bot_level_train)
     val_transforms = get_val_transformations()
-
-    num_epochs = 200
 
     for fold, (train_pid_idx, val_pid_idx) in enumerate(kf.split(all_pids)):
         print(f"\n{'=' * 60}")
@@ -491,12 +543,19 @@ def train_kfold(
                 num_classes=num_classes, bot_level=bot_level_model
             ).to(device)
         elif model_name == RESNET18_NAME:
-            model = ResNet18_BoT(num_classes=num_classes).to(device)
+            model = ResNet18_BoT(num_classes=num_classes, bot_level=bot_level_model).to(
+                device
+            )
         else:
             raise ValueError("Unrecognized model!")
 
         criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
-        criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(device)
+        if bot_level_train >= 2:
+            criterion_id = Cross_Entropy_Label_Smooth(num_classes=num_classes).to(
+                device
+            )
+        else:
+            criterion_id = nn.CrossEntropyLoss().to(device)
 
         if model_name == MOBILENETV3_NAME:
             criterion_center = Center_Loss(
@@ -511,15 +570,30 @@ def train_kfold(
         optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
         center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
-        def lr_lambda(epoch):
-            # if epoch < 10:
-            #    return (epoch + 1) / 10
+        # original from the paper
+
+        def lr_lambda1(epoch):
+            if epoch < 10:
+                return (epoch + 1) / 10
+            if epoch < 40:
+                return 1
+            elif epoch < 70:
+                return 0.1
+            else:
+                return 0.01
+
+        def lr_lambda2(epoch):
             if epoch < 150:
                 return 1.0
             elif epoch < 180:
                 return 0.1
             else:
                 return 0.01
+
+        if lr_function == 1:
+            lr_lambda = lr_lambda1
+        else:
+            lr_lambda = lr_lambda2
 
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
@@ -551,7 +625,7 @@ def train_kfold(
                 total_loss.backward()
                 optimizer.step()
 
-                if bot_level_train >= 2:
+                if bot_level_train >= 3:
                     for param in criterion_center.parameters():
                         param.grad.data *= 1.0 / center_loss_weight
                     center_optimizer.step()
@@ -697,6 +771,23 @@ def parse_arguments():
         dest="model",
         help="Use MobileNetV3",
     )
+
+    parser.add_argument(
+        "-ne",
+        "--number_epochs",
+        type=int,
+        default=120,
+        help="Number of epochs to train the model on",
+    )
+
+    parser.add_argument(
+        "-lrf",
+        "--learning_rate_func",
+        type=int,
+        default=1,
+        help="Use the suggewsted learning function",
+    )
+
     parser.set_defaults(model=RESNET18_NAME)
     return parser.parse_args()
 
@@ -714,7 +805,9 @@ if __name__ == "__main__":
         model_name=args.model,
         bot_level_model=args.bot_model,
         bot_level_train=args.bot_train,
-        save_name=f"{WEIGHTS_PATH}{args.model}_weights.pth",
+        lr_function=args.learning_rate_func,
+        num_epochs=args.number_epochs,
+        save_name=f"{WEIGHTS_PATH}{args.model}_bm{args.bot_model}_bt{args.bot_train}_ne{args.number_epochs}_lr{args.learning_rate_func}_weights.pth",
     )
 
     if args.train_grid_search:

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-for m in {0..2}
+for m in {0..3}
 do
 	for t in {0..3}
 	do
-		FILENAME="mobilenetv3_botm${t}_bott${m}.pth"
+		FILENAME="./weights/mobilenetv3_bm${t}_bt${m}weights.pth"
 
 		if [ -f "$FILENAME" ]; then
 			echo "Running $FILENAME"

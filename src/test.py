@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -12,8 +13,6 @@ from torchvision import transforms
 
 from dataset import Market_Eval_Dataset, Market_Train_Dataset
 from models import MobileNetV3_BoT, ResNet18_BoT
-
-import argparse
 
 DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/"
 
@@ -175,7 +174,7 @@ def evaluate(
     num_classes = train_ds.num_ids
 
     if model_name == "resnet18":
-        model = ResNet18_BoT(num_classes=num_classes).to(device)
+        model = ResNet18_BoT(num_classes=num_classes, bot_level=bot).to(device)
     elif model_name == "mobilenetv3":
         model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot).to(device)
 
@@ -216,14 +215,28 @@ def parse_arguments():
 
     parser.add_argument("-rr", "--rerank", action="store_true", help="Enable reranking")
 
-    parser.add_argument("-b", "--bot", type=int, default=1, help="Set bot level, must match the bot level, that the model was trained on")
+    parser.add_argument(
+        "-b",
+        "--bot",
+        type=int,
+        default=1,
+        help="Set bot level, must match the bot level, that the model was trained on",
+    )
 
-    parser.add_argument("-mbnet", "--mobilenet", action="store_const",
-                        const="mobilenetv3", dest="model", help="Use MobileNetV3")
+    parser.add_argument(
+        "-mbnet",
+        "--mobilenet",
+        action="store_const",
+        const="mobilenetv3",
+        default="resnet18",
+        dest="model",
+        help="Use MobileNetV3",
+    )
 
     parser.add_argument("-wf", "--weights_file", type=str, help="Path to weights file")
 
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_arguments()
