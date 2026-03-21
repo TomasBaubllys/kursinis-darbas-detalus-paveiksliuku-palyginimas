@@ -357,6 +357,8 @@ def train(
             device
         )
 
+    print(model)
+
     criterion_triplet = Batch_Hard_Triplet_Loss(margin=0.3).to(device)
 
     if bot_level_train >= 2:

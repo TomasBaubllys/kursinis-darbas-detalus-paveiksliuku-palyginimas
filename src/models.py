@@ -93,7 +93,7 @@ class MobileNetV3_BoT(nn.Module):
             self.classifier.apply(self.weights_init_classifier)
 
         if bot_level >= 3:
-            block_idx = 13 if model_type == "large" else 8
+            block_idx = 13 if model_type == "large" else 9
             for m in self.backbone[block_idx].modules():
                 if isinstance(m, nn.Conv2d) and m.stride == (2, 2):
                     m.stride = (1, 1)
