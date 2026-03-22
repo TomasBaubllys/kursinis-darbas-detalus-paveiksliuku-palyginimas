@@ -114,7 +114,7 @@ def re_ranking(probFea, galFea, k1=20, k2=6, lambda_value=0.3):
     return final_dist[:query_num, query_num:]
 
 
-def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
+def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids, include_same=True):
     num_queries = len(q_pids)
     rank1_correct = 0
     rank5_correct = 0
@@ -126,6 +126,7 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
 
         # Market-1501 Rule: Exclude gallery images with same PID AND same Camera (Junk)
         valid_mask = ~((g_pids == q_pid) & (g_camids == q_camid))
+        valid_mask[i] = include_same
         valid_dist = dist_matrix[i][valid_mask]
         valid_pids = g_pids[valid_mask]
 

@@ -26,10 +26,12 @@ class Market_Train_Dataset(Dataset):
 
         for f in all_files:
             if f.endswith(".jpg"):
-                person_id = f.split("_")[0]
+                parts = f.split("_")
+                person_id = parts[0]
+                cam_id = parts[1]
                 if person_id not in ["-1", "0000"]:
                     self.id_to_images[person_id].append(
-                        os.path.join(full_dataset_dir, f)
+                        (os.path.join(full_dataset_dir, f), cam_id)
                     )
 
         if id_list is not None:
@@ -47,14 +49,13 @@ class Market_Train_Dataset(Dataset):
 
     def __getitem__(self, idx):
         target_id = self.person_ids[idx]
-        img_path = random.choice(self.id_to_images[target_id])
+        img_path, cam_id = random.choice(self.id_to_images[target_id])
         img = Image.open(img_path).convert("RGB")
 
         if self.transform:
             img = self.transform(img)
 
-        # UPDATED: Return the mapped integer label, not the raw ID
-        return img, self.id_to_label[target_id]
+        return img, self.id_to_label[target_id], cam_id
 
 
 class Market_Eval_Dataset(Dataset):

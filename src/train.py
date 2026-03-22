@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+from math import dist
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
@@ -9,7 +10,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
+from scipy.spatial.distance import cdist
 from sklearn.model_selection import KFold
+from torch.types import Device
 from torch.utils.data import DataLoader
 
 import download_data
@@ -18,6 +21,7 @@ from cross_entropy_label_smooth import Cross_Entropy_Label_Smooth
 from dataset import DEFAULT_DATA_PATH, Market_Train_Dataset
 from models import MobileNetV3_BoT, ResNet18_BoT
 from pksampler import PKSampler
+from test import compute_metrics, extract_features
 from triplet_loss import Batch_Hard_Triplet_Loss
 
 RESNET18_NAME = "resnet18"
@@ -48,13 +52,12 @@ def graph_loss(loss_hist, epochs, loss_names=["1", "2"], title=""):
 
 
 def plot_fold_summary(
-    all_fold_train_losses, all_fold_val_losses, num_epochs, model_name
+    all_fold_train_losses, all_fold_val_losses, all_fold_ranks, num_epochs, model_name
 ):
     x = np.arange(1, num_epochs + 1)
     n_folds = len(all_fold_train_losses)
     loss_labels = ["Avg Loss", "ID Loss", "Triplet Loss", "Center Loss"]
 
-    # ---- 1. Per-fold training curves with Average ----
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Training Loss per Fold", fontsize=14)
     for li, (ax, label) in enumerate(zip(axes.flat, loss_labels)):
@@ -102,7 +105,6 @@ def plot_fold_summary(
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Validation Loss per Fold", fontsize=14)
     for li, (ax, label) in enumerate(zip(axes.flat, loss_labels)):
-        # Calculate matrix to get mean
         val_matrix = np.array(
             [
                 [
@@ -113,7 +115,6 @@ def plot_fold_summary(
             ]
         )
 
-        # Plot individual folds (lighter)
         for fold_idx in range(n_folds):
             ax.plot(
                 x,
@@ -127,7 +128,7 @@ def plot_fold_summary(
         ax.plot(
             x,
             val_matrix.mean(axis=0),
-            label="VAL AVG",
+            label="Average",
             color="black",
             linewidth=2,
             linestyle="--",
@@ -141,6 +142,7 @@ def plot_fold_summary(
     plt.tight_layout()
     plt.savefig(f"{model_name}_val_per_fold.jpg")
     plt.close()
+
     # mean and std
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"{model_name} – Mean ± Std across {n_folds} Folds", fontsize=14)
@@ -187,6 +189,50 @@ def plot_fold_summary(
     plt.close()
     print(f"  [Plot saved] {out}")
 
+    rank_labels = ["Rank-R1", "Rank-R5", "mAP"]
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig.suptitle(f"{model_name} – Validation Rank per Fold", fontsize=14)
+    for li, (ax, label) in enumerate(zip(axes.flat, rank_labels)):
+        val_matrix = np.array(
+            [
+                [
+                    v.detach().cpu().item() if hasattr(v, "cpu") else v
+                    for v in fold_hist[li]
+                ]
+                for fold_hist in all_fold_ranks
+            ]
+        )
+
+        for fold_idx in range(n_folds):
+            ax.plot(
+                x,
+                val_matrix[fold_idx],
+                label=f"Fold {fold_idx + 1}",
+                alpha=0.5,
+                linewidth=1,
+            )
+
+        # Plot Average (thicker)
+        ax.plot(
+            x,
+            val_matrix.mean(axis=0),
+            label="Average",
+            color="black",
+            linewidth=2,
+            linestyle="--",
+        )
+
+        ax.set_title(label)
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Rank, %")
+        ax.legend(fontsize=8, loc="lower right")
+
+    plt.tight_layout()
+    plt.savefig(f"{model_name}_val_rank_per_fold.jpg")
+    plt.close()
+
+    print(f"  [Plot saved] {out}")
+
 
 def plot_single_fold(fold_train_hist, fold_val_hist, num_epochs, title):
     """Train vs Val for a single fold – four subplots (one per loss type)."""
@@ -217,6 +263,15 @@ def plot_single_fold(fold_train_hist, fold_val_hist, num_epochs, title):
     print(f"  [Plot saved] {out}")
 
 
+def calc_one_epoch_r1_map(model: nn.Module, val_loader: DataLoader, device: Device):
+    model.eval()
+    all_feats, all_pids, all_camids = extract_features(model, val_loader, device)
+    dist_mat = cdist(all_feats.numpy(), all_feats.numpy(), metric="cosine")
+    return compute_metrics(
+        dist_mat, all_pids, all_pids, all_camids, all_camids, include_same=False
+    )
+
+
 def validate_one_epoch(
     model,
     val_loader,
@@ -227,21 +282,12 @@ def validate_one_epoch(
     bot_level_train,
     device,
 ):
-    """Run one pass over the validation dataloader and return average losses.
-
-    We keep the model in train() mode so that the forward pass returns the
-    same (embeddings, logits) tuple as during training.  Gradient computation
-    is still disabled via torch.no_grad(), so there is no weight update.
-    BatchNorm/Dropout will run in training mode – acceptable for loss
-    monitoring; switch to model.eval() here only if you need inference-stable
-    BN statistics instead.
-    """
     # Keep train() mode so output signature stays (embeddings, logits)
     model.train()
     running_loss = running_id = running_triplet = running_center = 0.0
 
     with torch.no_grad():
-        for images, labels in val_loader:
+        for images, labels, _ in val_loader:
             images, labels = images.to(device), labels.to(device)
             out = model(images)
             # Defensively unpack: take only first two elements in case the
@@ -412,7 +458,7 @@ def train(
         running_id_loss = 0.0
         running_triplet_loss = 0.0
         running_center_loss = 0.0
-        for i, (images, labels) in enumerate(dataloader):
+        for i, (images, labels, _) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
 
             embeddings, logits = model(images)
@@ -501,6 +547,7 @@ def train_kfold(
 
     all_fold_train_losses = []
     all_fold_val_losses = []
+    all_fold_ranks = []
 
     train_transforms = get_transformations(bot_level_train)
     val_transforms = get_val_transformations()
@@ -575,8 +622,8 @@ def train_kfold(
         # original from the paper
 
         def lr_lambda1(epoch):
-            if epoch < 10:
-                return (epoch + 1) / 10
+            # if epoch < 10:
+            #    return (epoch + 1) / 10
             if epoch < 40:
                 return 1
             elif epoch < 70:
@@ -601,12 +648,13 @@ def train_kfold(
 
         train_loss_hist = [[], [], [], []]
         val_loss_hist = [[], [], [], []]
+        rank_hist = [[], [], []]
 
         model.train()
         for epoch in range(num_epochs):
             running_loss = running_id = running_triplet = running_center = 0.0
 
-            for i, (images, labels) in enumerate(train_loader):
+            for i, (images, labels, _) in enumerate(train_loader):
                 images, labels = images.to(device), labels.to(device)
                 embeddings, logits = model(images)
 
@@ -660,17 +708,26 @@ def train_kfold(
                 bot_level_train,
                 device,
             )
+
             val_loss_hist[0].append(avg_val)
             val_loss_hist[1].append(val_id)
             val_loss_hist[2].append(val_trip)
             val_loss_hist[3].append(val_cen)
+
+            r1, r5, map = calc_one_epoch_r1_map(model, val_loader, device)
+            rank_hist[0].append(r1)
+            rank_hist[1].append(r5)
+            rank_hist[2].append(map)
+            model.train()
 
             current_lr = optimizer.param_groups[0]["lr"]
             print(
                 f"  >> Fold {fold + 1} | Epoch {epoch + 1}/{num_epochs} | "
                 f"LR: {current_lr:.6f} | "
                 f"Train Loss: {running_loss / n_train:.4f} | "
-                f"Val Loss: {avg_val:.4f}"
+                f"Val Loss: {avg_val:.4f} | "
+                f"Val R1 Rank {r1:.4f} | "
+                f"Val mAP {map:.4f} | "
             )
 
             torch.save(
@@ -699,10 +756,15 @@ def train_kfold(
 
         all_fold_train_losses.append(train_loss_hist)
         all_fold_val_losses.append(val_loss_hist)
+        all_fold_ranks.append(rank_hist)
 
     if plot_loss:
         plot_fold_summary(
-            all_fold_train_losses, all_fold_val_losses, num_epochs, model_name
+            all_fold_train_losses,
+            all_fold_val_losses,
+            all_fold_ranks,
+            num_epochs,
+            model_name,
         )
 
     print("\nTraining Finished (all folds)")
