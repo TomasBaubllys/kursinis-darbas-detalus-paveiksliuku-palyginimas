@@ -622,8 +622,8 @@ def train_kfold(
         # original from the paper
 
         def lr_lambda1(epoch):
-            # if epoch < 10:
-            #    return (epoch + 1) / 10
+            if epoch < 10:
+                return (epoch + 1) / 10
             if epoch < 40:
                 return 1
             elif epoch < 70:
