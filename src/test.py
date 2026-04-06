@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -113,7 +114,7 @@ def re_ranking(probFea, galFea, k1=20, k2=6, lambda_value=0.3):
     return final_dist[:query_num, query_num:]
 
 
-def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
+def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids, include_same=True):
     num_queries = len(q_pids)
     rank1_correct = 0
     rank5_correct = 0
@@ -125,6 +126,7 @@ def compute_metrics(dist_matrix, q_pids, g_pids, q_camids, g_camids):
 
         # Market-1501 Rule: Exclude gallery images with same PID AND same Camera (Junk)
         valid_mask = ~((g_pids == q_pid) & (g_camids == q_camid))
+        valid_mask[i] = include_same
         valid_dist = dist_matrix[i][valid_mask]
         valid_pids = g_pids[valid_mask]
 
@@ -155,7 +157,7 @@ def evaluate(
     use_reranking=True,
     weights_file="checkpoint.pth",
     model_name="resnet18",
-    bot=False,
+    bot=0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     transform = transforms.Compose(
@@ -173,9 +175,9 @@ def evaluate(
     num_classes = train_ds.num_ids
 
     if model_name == "resnet18":
-        model = ResNet18_BoT(num_classes=num_classes).to(device)
+        model = ResNet18_BoT(num_classes=num_classes, bot_level=bot).to(device)
     elif model_name == "mobilenetv3":
-        model = MobileNetV3_BoT(num_classes=num_classes, bot=bot).to(device)
+        model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot).to(device)
 
     checkpoint_name = weights_file
     if os.path.exists(checkpoint_name):
@@ -209,23 +211,40 @@ def evaluate(
     print(f"Rank-1: {r1:.2f}% | Rank-5: {r5:.2f}% | mAP: {mAP:.2f}%")
 
 
-if __name__ == "__main__":
-    args = sys.argv[1:]
-    rerank = False
-    model = "resnet18"
-    bot = False
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Process model settings.")
 
-    for arg in args:
-        if arg in ("-rr", "--rerank"):
-            rerank = True
-        if arg in ("-b", "--bot"):
-            bot = True
-        if arg in ("-mbnet", "--mobilenet"):
-            model = "mobilenetv3"
+    parser.add_argument("-rr", "--rerank", action="store_true", help="Enable reranking")
+
+    parser.add_argument(
+        "-b",
+        "--bot",
+        type=int,
+        default=1,
+        help="Set bot level, must match the bot level, that the model was trained on",
+    )
+
+    parser.add_argument(
+        "-mbnet",
+        "--mobilenet",
+        action="store_const",
+        const="mobilenetv3",
+        default="resnet18",
+        dest="model",
+        help="Use MobileNetV3",
+    )
+
+    parser.add_argument("-wf", "--weights_file", type=str, help="Path to weights file")
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
 
     evaluate(
-        use_reranking=rerank,
-        weights_file=f"{model}_weights.pth",
-        model_name=model,
-        bot=bot,
+        use_reranking=args.rerank,
+        weights_file=args.weights_file,
+        model_name=args.model,
+        bot=args.bot,
     )

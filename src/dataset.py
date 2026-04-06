@@ -13,7 +13,7 @@ DEFAULT_DATA_PATH = "../data/Market-1501-v15.09.15/bounding_box_train"
 
 
 class Market_Train_Dataset(Dataset):
-    def __init__(self, root_dir=DEFAULT_DATA_PATH, transform=None):
+    def __init__(self, root_dir=DEFAULT_DATA_PATH, transform=None, id_list=None):
         dataset_dir_train = root_dir
         full_dataset_dir = os.path.join(os.getcwd(), dataset_dir_train)
 
@@ -26,13 +26,18 @@ class Market_Train_Dataset(Dataset):
 
         for f in all_files:
             if f.endswith(".jpg"):
-                person_id = f.split("_")[0]
+                parts = f.split("_")
+                person_id = parts[0]
+                cam_id = parts[1]
                 if person_id not in ["-1", "0000"]:
                     self.id_to_images[person_id].append(
-                        os.path.join(full_dataset_dir, f)
+                        (os.path.join(full_dataset_dir, f), cam_id)
                     )
 
-        self.person_ids = sorted(list(self.id_to_images.keys()))
+        if id_list is not None:
+            self.person_ids = sorted(list(id_list))
+        else:
+            self.person_ids = sorted(list(self.id_to_images.keys()))
 
         self.id_to_label = {pid: i for i, pid in enumerate(self.person_ids)}
 
@@ -44,14 +49,13 @@ class Market_Train_Dataset(Dataset):
 
     def __getitem__(self, idx):
         target_id = self.person_ids[idx]
-        img_path = random.choice(self.id_to_images[target_id])
+        img_path, cam_id = random.choice(self.id_to_images[target_id])
         img = Image.open(img_path).convert("RGB")
 
         if self.transform:
             img = self.transform(img)
 
-        # UPDATED: Return the mapped integer label, not the raw ID
-        return img, self.id_to_label[target_id]
+        return img, self.id_to_label[target_id], cam_id
 
 
 class Market_Eval_Dataset(Dataset):
