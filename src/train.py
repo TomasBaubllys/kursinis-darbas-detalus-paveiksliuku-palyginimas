@@ -424,6 +424,15 @@ def train(
     optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
     center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
+    # no warmup
+    def lr_lambda0(epoch):
+        if epoch < 40:
+            return 1
+        elif epoch < 70:
+            return 0.1
+        else:
+            return 0.01
+
     # original from the paper
     def lr_lambda1(epoch):
         if epoch < 10:
@@ -443,7 +452,9 @@ def train(
         else:
             return 0.01
 
-    if lr_function == 1:
+    if lr_function == 0:
+        lr_lambda = lr_lambda0
+    elif lr_function == 1:
         lr_lambda = lr_lambda1
     else:
         lr_lambda = lr_lambda2
