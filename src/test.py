@@ -180,6 +180,7 @@ def evaluate(
         model = MobileNetV3_BoT(num_classes=num_classes, bot_level=bot).to(device)
 
     checkpoint_name = weights_file
+    print(weights_file)
     if os.path.exists(checkpoint_name):
         model.load_state_dict(torch.load(checkpoint_name, map_location=device))
         print(f"Loaded {checkpoint_name}")
