@@ -5,8 +5,12 @@
 IMAGE_NAME=reid-project
 
 if  ! "$(docker inspect ${IMAGE_NAME})" >/dev/null 2>&1 ; then
-	docker buildx build --load -t $IMAGE_NAME .
+	sudo docker buildx build -t $IMAGE_NAME .
 fi
 
-docker run --gpus all -it --rm --shm-size=8gb ${IMAGE_NAME}
+
+sudo docker run -it --rm --shm-size=8gb ${IMAGE_NAME}
+
+# if you have nvidia gpu, use this instead
+#sudo docker run --gpus all -it --rm --shm-size=8gb ${IMAGE_NAME}
 
