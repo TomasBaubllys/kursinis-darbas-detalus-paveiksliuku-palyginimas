@@ -322,11 +322,10 @@ def get_transformations(bot_level_train):
         return transforms.Compose(
             [
                 transforms.Resize(
-                    (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
+                    (224, 224), interpolation=transforms.InterpolationMode.BILINEAR
                 ),
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.Pad(10),
-                transforms.RandomCrop((256, 128)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
