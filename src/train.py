@@ -322,10 +322,11 @@ def get_transformations(bot_level_train):
         return transforms.Compose(
             [
                 transforms.Resize(
-                    (224, 224), interpolation=transforms.InterpolationMode.BILINEAR
+                    (256, 128), interpolation=transforms.InterpolationMode.BILINEAR
                 ),
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.Pad(10),
+                transforms.RandomCrop((256, 128)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -629,8 +630,16 @@ def train_kfold(
         optimizer = optim.Adam(model.parameters(), lr=3.5e-4, weight_decay=5e-4)
         center_optimizer = optim.SGD(criterion_center.parameters(), lr=0.5)
 
-        # original from the paper
+        # no warmup
+        def lr_lambda0(epoch):
+            if epoch < 40:
+                return 1
+            elif epoch < 70:
+                return 0.1
+            else:
+                return 0.01
 
+        # original from the paper
         def lr_lambda1(epoch):
             if epoch < 10:
                 return (epoch + 1) / 10
@@ -649,7 +658,9 @@ def train_kfold(
             else:
                 return 0.01
 
-        if lr_function == 1:
+        if lr_function == 0:
+            lr_lambda = lr_lambda0
+        elif lr_function == 1:
             lr_lambda = lr_lambda1
         else:
             lr_lambda = lr_lambda2
